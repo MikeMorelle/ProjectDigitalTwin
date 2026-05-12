@@ -1,23 +1,23 @@
-1. Set up
+# 1. Set up
 
-# venv erstellen
+## venv erstellen
 
 python -m venv venv
 
-# aktivieren
+## aktivieren
 
 venv\Scripts\activate
 
-# dependencies installieren
+## dependencies installieren
 
 pip install -r requirements.txt
 
-2. Run Program
+# 2. Run Program
 
-# run stream in terminal or run button
+## run stream in terminal or run button
 
 python stream_fd001.py
 
-# start streamlit app
+## start streamlit app
 
 streamlit run app.py
