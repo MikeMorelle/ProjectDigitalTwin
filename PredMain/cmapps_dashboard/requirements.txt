@@ -1,0 +1,8 @@
+pandas
+numpy
+xgboost
+shap
+streamlit
+plotly
+joblib
+streamlit-autorefresh
