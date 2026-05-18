@@ -1,4 +1,0 @@
-streamlit
-plotly
-websocket-client
-streamlit_autorefresh
