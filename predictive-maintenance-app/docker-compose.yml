@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+  models:
+    build:
+      context: .
+      dockerfile: models/Dockerfile
+  streaming:
+    build:
+      context: .
+      dockerfile: streaming/Dockerfile
+    depends_on:
+      - backend
