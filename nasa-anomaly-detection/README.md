@@ -1,3 +1,9 @@
+# 🛩️ NASA CMAPSS 2008 — Anomaly Detection Model
+
+A trained Isolation Forest model that detects abnormal turbofan engine behavior before failure. Built for a Digital Twin Predictive Maintenance project.
+
+---
+
 ## 📊 Dataset
 
 NASA CMAPSS Turbofan Engine Degradation Simulation dataset.
