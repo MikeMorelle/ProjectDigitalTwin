@@ -1,9 +1,3 @@
-# 🛩️ NASA CMAPSS 2008 — Anomaly Detection Model
-
-A trained Isolation Forest model that detects abnormal turbofan engine behavior before failure. Built for a Digital Twin Predictive Maintenance project.
-
----
-
 ## 📊 Dataset
 
 NASA CMAPSS Turbofan Engine Degradation Simulation dataset.
@@ -25,10 +19,7 @@ NASA CMAPSS Turbofan Engine Degradation Simulation dataset.
 Loaded 12 NASA files (4 train + 4 test + 4 RUL). Added 26 column names since raw files have no headers.
 
 ### Step 2: Calculate RUL (Remaining Useful Life)
-RUL = max_cycle_of_engine − current_cycle
-
-- Cycle 1 of 200: RUL = 199 (healthy)
-- Cycle 190 of 200: RUL = 10 (critical)
+Used RUL only as a training tool to identify healthy engine cycles — the model itself never sees RUL during prediction.
 
 ### Step 3: Handle Operating Conditions
 - **FD001 & FD003:** 1 condition (sea level) — no special handling needed
@@ -82,7 +73,85 @@ Professor asked us to explore improvements. Tested 9 configurations:
 
 ---
 
-## 📈 Results
+## 🔄 Update — Score-Based Alert System (01.06.2026)
+
+### What Changed
+
+The original model used **RUL (Remaining Useful Life)** to determine engine health status. This was problematic because:
+
+- RUL is only available in historical NASA data — not on live engines
+- Health zones (Healthy/Warning/Critical) depended on knowing exactly when the engine would fail
+- The model couldn't be deployed in production where true RUL is unknown
+
+### The Fix
+
+Replaced RUL-based health zones with a **score-based alert system** that uses only anomaly scores:
+
+| Before (RUL-Based) | After (Score-Based) |
+|---------------------|---------------------|
+| 🟢 Healthy (RUL > 50) | 🟢 OK |
+| 🟠 Warning (RUL 30-50) | 🔴 ALERT |
+| 🔴 Critical (RUL ≤ 30) | |
+
+### How the Alert System Works
+
+The `get_alert_level()` function analyzes anomaly score history using 4 signals:
+
+1. **Current level** — Rolling average of last 10 scores
+2. **Rate of change** — Is the score deteriorating?
+3. **Personal baseline** — Is this worse than the engine's own healthy state?
+4. **Persistence** — How many consecutive negative scores?
+
+**Alert triggers:** 8 bad cycles out of last 20 → 🔴 ALERT
+**Alert clears:** 15 good cycles out of last 20 → 🟢 OK
+**Warmup protection:** First 10 cycles always 🟢 OK
+**Stability:** Average 0.1–0.6 transitions per engine (no flickering)
+
+### Why Two Levels Instead of Three?
+
+Analysis showed that anomaly scores don't separate cleanly into three groups (Healthy/Warning/Critical). The "Warning" zone was mostly noise — scores hovering near zero. Simplifying to two levels makes the system clearer and more reliable.
+
+### Updated Model Bundle
+
+The file `anomaly_detection_model.joblib` now includes:
+
+| Item | Description |
+|------|-------------|
+| `model` | Trained Isolation Forest (unchanged) |
+| `scalers` | StandardScaler per dataset (unchanged) |
+| `cluster_models` | KMeans for FD002/FD004 (unchanged) |
+| `feature_cols` | 42 feature names (unchanged) |
+| `get_alert_level` | **NEW** — Score-based alert function |
+
+The training pipeline and model weights are identical to the original — only the output layer (health determination) was updated.
+
+---
+
+## 🚨 Alert System Performance
+
+### Alert Stability by Dataset
+
+| Dataset | Avg Transitions | Max Transitions | 0 Transitions | ≤2 Transitions |
+|---------|----------------|-----------------|---------------|----------------|
+| FD001 | 0.1 | 1 | 92% | 100% |
+| FD002 | 0.3 | 3 | 71% | 99% |
+| FD003 | 0.4 | 4 | 74% | 95% |
+| FD004 | 0.6 | 6 | 63% | 96% |
+
+### Alert Detection by Dataset
+
+| Dataset | Engines Alerted | False Alerts (First 30% Life) | True False Rate* |
+|---------|----------------|------------------------------|------------------|
+| FD001 | 8% | 0.0% | 0.0% |
+| FD002 | 29% | 2.3% | ~1% |
+| FD003 | 26% | 10.0% | ~4% |
+| FD004 | 37% | 8.9% | ~5% |
+
+*\*60% of "false alerts" on FD003/FD004 are actually early warnings — the engine degrades later in life. True false alarm rate is ~4-5%.*
+
+---
+
+## 📈 Original Model Performance
 
 ### Training Data (160,359 cycles)
 
@@ -113,16 +182,6 @@ Professor asked us to explore improvements. Tested 9 configurations:
 
 ---
 
-## 🏥 Health Zones
-
-| Zone | RUL | Meaning |
-|------|-----|---------|
-| 🟢 Healthy | > 50 cycles | Normal operation |
-| 🟠 Warning | 30–50 cycles | Degradation starting |
-| 🔴 Critical | ≤ 30 cycles | Near failure — immediate action |
-
----
-
 ## 🚀 How to Use the Model
 
 ### Quick Start (Easiest Way)
@@ -145,12 +204,12 @@ If you want to integrate the model into your own code:
 
 ```bash
 
-python
+
 import joblib
 import pandas as pd
 import numpy as np
 
-# Load model
+# Load model bundle
 bundle = joblib.load('anomaly_detection_model.joblib')
 model = bundle['model']
 scalers = bundle['scalers']
@@ -158,6 +217,7 @@ cluster_models = bundle['cluster_models']
 feature_cols = bundle['feature_cols']
 sensor_cols = bundle['sensor_cols']
 window = bundle['rolling_window']
+get_alert_level = bundle['get_alert_level']
 
 # Load your data
 COLUMN_NAMES = ['unit_id', 'cycle', 'op_setting_1', 'op_setting_2', 'op_setting_3',
@@ -178,7 +238,7 @@ for engine in data['unit_id'].unique():
         data.loc[mask, f'{sensor}_roll_mean'] = data.loc[mask, sensor].rolling(window=window, min_periods=1).mean().values
         data.loc[mask, f'{sensor}_roll_std'] = data.loc[mask, sensor].rolling(window=window, min_periods=1).std().values
 
-# Predict
+# Predict anomalies
 data['anomaly_score'] = model.decision_function(data[feature_cols])
 data['is_anomaly'] = (model.predict(data[feature_cols]) == -1).astype(int)
 
@@ -187,7 +247,18 @@ for engine in data['unit_id'].unique():
     mask = data['unit_id'] == engine
     data.loc[mask & (data['cycle'] <= window), 'is_anomaly'] = 0
 
-print(f"Anomalies detected: {data['is_anomaly'].sum()} / {len(data)}")
+# Get alert levels (NO RUL needed!)
+scores_history = []
+alerts = []
+current = '🟢 OK'
+for score in data['anomaly_score']:
+    scores_history.append(score)
+    current = get_alert_level(scores_history.copy(), current)
+    alerts.append(current)
+data['alert_level'] = alerts
+
+print(f"Anomalies: {data['is_anomaly'].sum()} / {len(data)}")
+print(f"Alerts: {(data['alert_level'] == '🔴 ALERT').sum()} cycles")
 ```
 
 ---
@@ -198,20 +269,33 @@ print(f"Anomalies detected: {data['is_anomaly'].sum()} / {len(data)}")
 |-----------|-------|
 | unit_id | Engine number |
 | cycle | Operating cycle number |
-| RUL / true_RUL | Remaining Useful Life (ground truth) |
 | anomaly_score | Continuous score (more negative = more anomalous) |
 | is_anomaly | 1 = anomaly detected, 0 = normal |
-| health_status | Healthy / Warning / Critical |
+| alert_level | 🟢 OK or 🔴 ALERT (score-based, no RUL needed) |
+
+---
+
+### 📋 Key Design Decisions
+
+| Decision | Why |
+|-----------|-------|
+| Score-based alerts, not RUL-based | Works on live engines where true RUL is unknown |
+| Two alert levels (not three) | Scores don't separate into three clean groups — simpler is clearer |
+| Alert persistence (hysteresis) | Prevents flickering — 0.1-0.6 transitions per engine |
+| Engineer as final decision-maker | Model screens, human decides — 60% of early alerts are genuine early warnings |
+| Train on healthy data only | Model learns "normal" — anything different is flagged |
 
 ---
 
 ### ⚠️ Limitations
 
-- FD001 critical detection is 58.4% — lower than other datasets (small critical zone)
+- Sensors change only 0.3-1.8% from healthy to failing — degradation signal is physically subtle
 
-- FD004 training had 10.5% healthy false positives (slightly above ideal)
+- FD003/FD004 show ~9-10% alert rate on early healthy data — but 60% of these are early detection, not false alarms
 
 - Requires the exact same preprocessing pipeline as training
 
 - Only tested on NASA CMAPSS data 2008
+
+- Model is a screening tool — engineer must review alerts before taking action
 
