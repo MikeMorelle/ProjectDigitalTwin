@@ -1,7 +1,9 @@
 """
 predict_example.py
-Demo script to test the anomaly detection model on FD001 test data.
-Run: python predict_example.py
+Demo script to test the anomaly detection model on NASA CMAPSS data.
+Run: python predict_example.py test_FD001.txt
+
+Now includes score-based alert levels — no RUL needed!
 """
 
 import joblib
@@ -27,9 +29,11 @@ cluster_models = bundle['cluster_models']
 feature_cols   = bundle['feature_cols']
 sensor_cols    = bundle['sensor_cols']
 window         = bundle['rolling_window']
+get_alert_level = bundle['get_alert_level']  # NEW: Alert function
 
 print(f"Model: Isolation Forest (contamination={bundle['config']['contamination']})")
 print(f"Features: {len(feature_cols)}")
+print(f"Alert system: Score-based (🟢 OK / 🔴 ALERT)")
 print()
 
 # Check if user provided a data file
@@ -71,7 +75,7 @@ for engine in data['unit_id'].unique():
         data.loc[mask, f'{sensor}_roll_mean'] = data.loc[mask, sensor].rolling(window=window, min_periods=1).mean().values
         data.loc[mask, f'{sensor}_roll_std']  = data.loc[mask, sensor].rolling(window=window, min_periods=1).std().values
 
-# Predict
+# Predict anomalies
 print("Predicting anomalies...")
 data['anomaly_score'] = model.decision_function(data[feature_cols])
 data['is_anomaly']    = (model.predict(data[feature_cols]) == -1).astype(int)
@@ -81,21 +85,57 @@ for engine in data['unit_id'].unique():
     mask = data['unit_id'] == engine
     data.loc[mask & (data['cycle'] <= window), 'is_anomaly'] = 0
 
+# ========================================================================
+# NEW: Get alert levels for each engine (NO RUL NEEDED!)
+# ========================================================================
+print("Determining alert levels...")
+data['alert_level'] = '🟢 OK'  # Default
+
+for engine in data['unit_id'].unique():
+    mask = data['unit_id'] == engine
+    engine_data = data.loc[mask].sort_values('cycle')
+    
+    scores_history = []
+    current_alert = '🟢 OK'
+    
+    for idx in engine_data.index:
+        scores_history.append(data.loc[idx, 'anomaly_score'])
+        current_alert = get_alert_level(scores_history.copy(), current_alert)
+        data.loc[idx, 'alert_level'] = current_alert
+
+# ========================================================================
 # Results
+# ========================================================================
 total_anomalies = data['is_anomaly'].sum()
 total_cycles    = len(data)
+total_alerts    = (data['alert_level'] == '🔴 ALERT').sum()
+alerted_engines = data[data['alert_level'] == '🔴 ALERT']['unit_id'].nunique()
+
 print()
 print("=" * 50)
 print("RESULTS")
 print("=" * 50)
-print(f"Total cycles:     {total_cycles:,}")
-print(f"Anomalies found:  {total_anomalies:,} ({total_anomalies/total_cycles*100:.1f}%)")
-print(f"Score range:      {data['anomaly_score'].min():.3f} to {data['anomaly_score'].max():.3f}")
+print(f"Total cycles:       {total_cycles:,}")
+print(f"Anomalies found:    {total_anomalies:,} ({total_anomalies/total_cycles*100:.1f}%)")
+print(f"🔴 ALERT cycles:    {total_alerts:,} ({total_alerts/total_cycles*100:.1f}%)")
+print(f"🔴 ALERT engines:   {alerted_engines}/{data['unit_id'].nunique()}")
+print(f"Score range:        {data['anomaly_score'].min():.3f} to {data['anomaly_score'].max():.3f}")
 print()
 print("Sample (first 10 rows):")
-print(data[['unit_id', 'cycle', 'anomaly_score', 'is_anomaly']].head(10).to_string(index=False))
+print(data[['unit_id', 'cycle', 'anomaly_score', 'is_anomaly', 'alert_level']].head(10).to_string(index=False))
+
+# Show engines with alerts
+if alerted_engines > 0:
+    print(f"\nEngines with 🔴 ALERT:")
+    for eng in sorted(data[data['alert_level'] == '🔴 ALERT']['unit_id'].unique()):
+        eng_data = data[(data['unit_id'] == eng) & (data['alert_level'] == '🔴 ALERT')]
+        first_alert = eng_data['cycle'].min()
+        last_cycle = data[data['unit_id'] == eng]['cycle'].max()
+        alert_cycles = len(eng_data)
+        print(f"  Engine #{eng}: Alert from cycle {first_alert:.0f} to {last_cycle:.0f} ({alert_cycles} cycles)")
 
 # Save results
 output_file = f'predictions_FD00{dataset_num}.csv'
-data[['unit_id', 'cycle', 'anomaly_score', 'is_anomaly']].to_csv(output_file, index=False)
+data[['unit_id', 'cycle', 'anomaly_score', 'is_anomaly', 'alert_level']].to_csv(output_file, index=False)
 print(f"\nResults saved to: {output_file}")
+print(f"Columns: unit_id, cycle, anomaly_score, is_anomaly, alert_level")
