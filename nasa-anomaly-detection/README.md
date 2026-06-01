@@ -106,11 +106,12 @@ The `get_alert_level()` function analyzes anomaly score history using 4 signals:
 1. **Current level** — Rolling average of last 10 scores
 2. **Rate of change** — Is the score deteriorating?
 3. **Personal baseline** — Is this worse than the engine's own healthy state?
-4. **Persistence** — How many consecutive negative scores?
+4. **Persistence** — How many of the last 5 cycles are bad? 
+(5/5 threshold) A cycle is "bad" if: rolling average < 0.0, or 3+ consecutive negatives, or score < -0.003
 
-**Alert triggers:** 8 bad cycles out of last 20 → 🔴 ALERT
-**Alert clears:** 15 good cycles out of last 20 → 🟢 OK
-**Warmup protection:** First 10 cycles always 🟢 OK
+**Alert triggers:** 5 bad cycles out of last 5 → 🔴 ALERT triggered
+**Alert clears:** 3 good cycles out of last 5 → 🟢 OK
+**Warmup protection:** First 10 cycles always 🟢 OK (warmup)
 **Stability:** Average 0.1–0.6 transitions per engine (no flickering)
 
 ### Why Two Levels Instead of Three?
