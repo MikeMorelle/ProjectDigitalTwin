@@ -103,11 +103,13 @@ Replaced RUL-based health zones with a **score-based alert system** that uses on
 
 The `get_alert_level()` function analyzes anomaly score history using 4 signals:
 
-1. **Current level** — Rolling average of last 10 scores
-2. **Rate of change** — Is the score deteriorating?
-3. **Personal baseline** — Is this worse than the engine's own healthy state?
-4. **Persistence** — How many of the last 5 cycles are bad? 
-(5/5 threshold) A cycle is "bad" if: rolling average < 0.0, or 3+ consecutive negatives, or score < -0.003
+| Signal | What It Measures | Why It Matters |
+|---------|-----------|-------------|
+| **Current level** | Rolling average of last 10 scores | One bad reading might be noise — average shows real state |
+| **Rate of change** | Slope of scores over last 10 cycles | A score dropping fast is more concerning than a stable low score |
+| **Personal baseline** | Current score vs engine's own healthy history | Every engine is different — compare to itself, not others |
+| **Persistence** | How many of the last 5 cycles are bad? | One negative is noise. Five in a row is a real problem |
+
 
 **Alert triggers:** 5 bad cycles out of last 5 → 🔴 ALERT triggered
 **Alert clears:** 3 good cycles out of last 5 → 🟢 OK
