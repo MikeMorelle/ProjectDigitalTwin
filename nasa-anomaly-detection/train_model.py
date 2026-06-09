@@ -18,7 +18,7 @@ import joblib
 # There are 26 columns in total.
 # ----------------------------------------------------------
 COLUMN_NAMES = [
-    "unit_id", "cycle", "op_setting_1", "op_setting_2", "op_setting_3",
+    "engine_id", "cycle", "op_setting_1", "op_setting_2", "op_setting_3",
     "sensor_1", "sensor_2", "sensor_3", "sensor_4", "sensor_5",
     "sensor_6", "sensor_7", "sensor_8", "sensor_9", "sensor_10",
     "sensor_11", "sensor_12", "sensor_13", "sensor_14", "sensor_15",
@@ -51,7 +51,7 @@ def load_one_file(file_number, folder_path):
     # The file has columns separated by spaces, and no header row
     df = pd.read_csv(file_path, sep=r"\s+", header=None, names=COLUMN_NAMES)
     # Sort by engine ID first, then by cycle number
-    df = df.sort_values(["unit_id", "cycle"])
+    df = df.sort_values(["engine_id", "cycle"])
     df = df.reset_index(drop=True)  # Reset row numbers after sorting
     return df
 
@@ -64,9 +64,9 @@ def add_rul_column(df):
     """
     df = df.copy()
     # Find the last cycle for each engine
-    max_cycles = df.groupby("unit_id")["cycle"].max()
+    max_cycles = df.groupby("engine_id")["cycle"].max()
     # Subtract the current cycle from the max cycle
-    df["RUL"] = df["unit_id"].map(max_cycles) - df["cycle"]
+    df["RUL"] = df["engine_id"].map(max_cycles) - df["cycle"]
     return df
 
 
@@ -82,11 +82,11 @@ def compute_rolling_features(df, window=10):
     df = df.copy()
     
     # Get a list of all engine IDs
-    all_engines = df["unit_id"].unique()
+    all_engines = df["engine_id"].unique()
     
     for engine_id in all_engines:
         # Find rows that belong to this engine
-        engine_rows = df["unit_id"] == engine_id
+        engine_rows = df["engine_id"] == engine_id
         
         for sensor_name in SENSOR_COLS:
             # Rolling mean
@@ -142,7 +142,7 @@ for i in [1, 2, 3, 4]:
     
     # Print how much data we loaded
     num_rows = len(df)
-    num_engines = df["unit_id"].nunique()
+    num_engines = df["engine_id"].nunique()
     print(f"  FD00{i}: {num_rows:,} rows, {num_engines} engines")
 
 # ----------------------------------------------------------
@@ -190,10 +190,10 @@ for dataset_num in [1, 2, 3, 4]:
         
         # But we fit the scaler only on the first 40% of each engine's life
         # (the healthiest part)
-        num_engines = df["unit_id"].nunique()
+        num_engines = df["engine_id"].nunique()
         healthy_count = int(num_engines * HEALTHY_PERCENT)
-        healthy_engine_ids = df["unit_id"].unique()[:healthy_count]
-        healthy_rows = df["unit_id"].isin(healthy_engine_ids)
+        healthy_engine_ids = df["engine_id"].unique()[:healthy_count]
+        healthy_rows = df["engine_id"].isin(healthy_engine_ids)
         
         scaler = StandardScaler()
         scaler.fit(df.loc[healthy_rows, SENSOR_COLS].astype(float))
@@ -229,7 +229,7 @@ for dataset_num in [1, 2, 3, 4]:
     
     # Find the healthy part of each engine's life (first 40%)
     # Healthy = RUL > 60% of the engine's total life
-    max_rul_per_engine = df.groupby("unit_id")["RUL"].transform("max")
+    max_rul_per_engine = df.groupby("engine_id")["RUL"].transform("max")
     healthy_mask = df["RUL"] > max_rul_per_engine * (1 - HEALTHY_PERCENT)
     healthy_data = df[healthy_mask]
     
@@ -256,76 +256,6 @@ model = IsolationForest(
 )
 model.fit(X_train)
 print("  Model training complete!")
-
-# ----------------------------------------------------------
-print("\nStep 6: Adding the alert function...")
-print("-" * 40)
-
-# This function decides if an engine is OK or needs attention.
-# It uses only the anomaly scores (no RUL needed).
-def get_alert_level(scores_history, current_alert="OK"):
-    """
-    Decide the alert level based on recent anomaly scores.
-    scores_history: a list of anomaly scores (newest at the end)
-    current_alert: what the alert is right now ("OK" or "ALERT")
-    Returns: "OK" or "ALERT"
-    """
-    # Need at least 10 cycles before we can judge
-    if len(scores_history) <= 10:
-        return "OK"
-    
-    scores = np.array(scores_history)
-    bad_count = 0
-    good_count = 0
-    
-    # Look at the last 5 cycles
-    for i in range(len(scores) - 5, len(scores)):
-        # Average of the last 10 cycles ending at this point
-        avg_of_last_10 = np.mean(scores[i-9:i+1])
-        
-        # Count how many consecutive negative scores we have
-        consecutive_negatives = 0
-        for j in range(i, -1, -1):
-            if scores[j] < 0:
-                consecutive_negatives += 1
-            else:
-                break
-        
-        # A cycle is "bad" if:
-        # - The 10-cycle average is negative, OR
-        # - We have 3+ consecutive negative scores, OR
-        # - This cycle's score is below -0.003
-        is_bad = (
-            avg_of_last_10 < 0.0 or
-            consecutive_negatives >= 3 or
-            scores[i] < -0.003
-        )
-        
-        if is_bad:
-            bad_count += 1
-        else:
-            good_count += 1
-    
-    # Decision rules
-    if current_alert == "OK":
-        # Need 5 bad cycles in the last 5 to trigger an alert
-        if bad_count >= 5:
-            return "ALERT"
-        else:
-            return "OK"
-    
-    elif current_alert == "ALERT":
-        # Need 3 good cycles in the last 5 to clear the alert
-        if good_count >= 3:
-            return "OK"
-        else:
-            return "ALERT"
-    
-    return "OK"
-
-
-print("  Alert function defined!")
-
 # ----------------------------------------------------------
 print("\nStep 7: Saving the model bundle...")
 print("-" * 40)
@@ -336,9 +266,7 @@ bundle = {
     "scalers": all_scalers,               # StandardScaler objects
     "cluster_models": all_cluster_models, # KMeans objects for FD002/FD004
     "feature_cols": FEATURE_COLS,         # List of 42 feature column names
-    "sensor_cols": SENSOR_COLS,           # List of 21 sensor column names
     "rolling_window": ROLLING_WINDOW,     # The window size (10)
-    "get_alert_level": get_alert_level,   # The alert function
     "config": {                           # Training settings
         "healthy_pct": HEALTHY_PERCENT,
         "contamination": CONTAMINATION,
