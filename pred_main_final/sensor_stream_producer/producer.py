@@ -4,7 +4,10 @@ from ml.data.load_data import load_data
 from collections import defaultdict
 from event_builder import EngineState, compute_features
 from config import SENSORS, PROD_SLEEP_SECONDS, INPUT_TOPIC
+import joblib
 
+bundle = joblib.load("ml/models/latest/ano_model.joblib")
+scaler = bundle["scalers"][1]
 
 #PRODUCER
 def create_producer():
@@ -29,7 +32,9 @@ def main():
             "cycle": int(cycle),
             "engines": []
         }
-        cycle_rows = df[df["cycle"] == cycle]
+        cycle_rows = df[df["cycle"] == cycle].copy()
+
+        cycle_rows[SENSORS] = scaler.transform(cycle_rows[SENSORS].astype(float))
 
         for _, row in cycle_rows.iterrows():
             engine_id = int(row["engine_id"])

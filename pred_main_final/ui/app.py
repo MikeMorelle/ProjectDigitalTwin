@@ -64,4 +64,4 @@ with placeholder.container():
             if st.button("Close", key=f"close_{eng}"):
                 st.rerun()
 
-st_autorefresh(interval=5000, key="datarefresh")
+st_autorefresh(interval=15000, key="datarefresh")

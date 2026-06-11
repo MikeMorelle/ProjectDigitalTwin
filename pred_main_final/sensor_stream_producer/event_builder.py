@@ -21,14 +21,18 @@ def compute_features(state):
             continue
 
         mean = sum(values) / len(values)
-        var = sum(
-            (x - mean)**2
-            for x in values
-        ) / len(values)
-        std = math.sqrt(var)
+        if len(values) == 1:
+            std = 0
 
-        features[f"{s}_rolling_mean"] = mean
-        features[f"{s}_rolling_std"] = std
+        else: 
+            var = sum(
+                (x - mean)**2
+                for x in values
+            ) / (len(values) - 1)
+            std = math.sqrt(var)
+
+        features[f"{s}_roll_mean"] = mean
+        features[f"{s}_roll_std"] = std
 
     return features
 

@@ -28,7 +28,8 @@ print("Consumer and Producer created, starting to consume messages...")
 conn = get_connection()
 print("Database connection established.")
 
-feature_cols = joblib.load("ml/models/latest/feature_cols.pkl")
+bundle = joblib.load("ml/models/latest/ano_model.joblib")
+feature_cols = bundle['feature_cols']
 
 for msg in consumer:
 
