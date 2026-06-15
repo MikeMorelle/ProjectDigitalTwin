@@ -30,13 +30,15 @@ def insert_result(conn, row):
             engine_id,
             cycle,
             anomaly_score,
-            is_anomaly
-        ) VALUES (%s, %s, %s, %s)
+            is_anomaly,
+            rul
+        ) VALUES (%s, %s, %s, %s, %s)
     """, (
         row["engine_id"],
         row["cycle"],
         row["anomaly_score"],
-        row["is_anomaly"]
+        row["is_anomaly"],
+        row["rul"]
     ))
 
     conn.commit()

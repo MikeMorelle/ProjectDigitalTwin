@@ -14,7 +14,7 @@ if "selected_engine" not in st.session_state:
     st.session_state.selected_engine = None
 
 def get_status(score):
-    if score < 0:
+    if score == 1:
         return "Anomaly"
     else:
         return "Normal"
@@ -26,7 +26,7 @@ if df.empty:
         st.warning("No data in database yet")
         st_autorefresh(interval=5000, key="dfrefresh")
 
-df["status"] = df["anomaly_score"].apply(get_status)
+df["status"] = df["is_anomaly"].apply(get_status)
 
 # filter shutdown engines, later in db to optimize
 df = df[~df["engine_id"].isin(st.session_state.shutdown_engines)]
@@ -64,4 +64,4 @@ with placeholder.container():
             if st.button("Close", key=f"close_{eng}"):
                 st.rerun()
 
-st_autorefresh(interval=15000, key="datarefresh")
+st_autorefresh(interval=5000, key="datarefresh")

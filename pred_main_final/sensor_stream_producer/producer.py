@@ -6,8 +6,8 @@ from event_builder import EngineState, compute_features
 from config import SENSORS, PROD_SLEEP_SECONDS, INPUT_TOPIC
 import joblib
 
-bundle = joblib.load("ml/models/latest/ano_model.joblib")
-scaler = bundle["scalers"][1]
+bundle1 = joblib.load("ml/models/latest/ano_model.joblib")
+scaler = bundle1["scalers"][1]
 
 #PRODUCER
 def create_producer():

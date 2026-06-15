@@ -8,3 +8,5 @@ sqlalchemy
 streamlit
 streamlit-autorefresh
 python-dotenv
+pytest
+xgboost
