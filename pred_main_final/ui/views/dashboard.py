@@ -6,6 +6,10 @@ import shap
 import numpy as np
 import streamlit as st
 
+#
+#DONT FORGET SCALING
+#
+
 st.set_page_config(page_title="Predictive Maintenance", layout="wide")
 st.title("Live Anomaly Monitoring")
 placeholder = st.empty()

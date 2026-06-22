@@ -39,26 +39,20 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-  sensor_stream_producer:
+  api:
     build:
       context: .
-      dockerfile: sensor_stream_producer/Dockerfile
+      dockerfile: api/Dockerfile
     depends_on:
       kafka:
         condition: service_healthy
-    volumes:
-      - ./ml/data:/app/data #mount data into container
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    env_file:
-      - .env
     ports:
       - "8000:8000"
 
-  stream2db_consumer:
+  kafka_manager:
     build:
       context: .
-      dockerfile: stream2db_consumer/Dockerfile
+      dockerfile: kafka_manager/Dockerfile
     depends_on:
       kafka:
         condition: service_healthy

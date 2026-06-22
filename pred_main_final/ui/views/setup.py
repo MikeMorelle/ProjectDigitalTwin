@@ -5,7 +5,7 @@ st.title("Kafka Control")
 
 def get_status():
     try: 
-        response = requests.get("http://sensor_stream_producer:8000/status")
+        response = requests.get("http://api:8000/status")
         return response.json()
     except:
         return {"running": False}
@@ -26,10 +26,10 @@ interval = st.selectbox(
 
 #which models + edge/frontend ML calc
 
-if st.button("Start Streaming!", disabled=running):
+if st.button("Start Streaming!"):
     with st.spinner("Starting producer..."):
         response = requests.post(
-            "http://sensor_stream_producer:8000/start",
+            "http://api:8000/start",
             json = {
                 "dataset": dataset,
                 "interval": interval
@@ -38,13 +38,14 @@ if st.button("Start Streaming!", disabled=running):
     st.json(response.json())
     st.success(f"Start sensor data streaming with {dataset} every {interval} seconds. ")
 
-if st.button("Reset Streaming", disabled=not running):
+if st.button("Reset Streaming"):
     with st.spinner("Resetting DB..."):
-        response = requests.post("http://sensor_stream_producer:8000/reset")
+        response = requests.post("http://api:8000/reset")
     st.success("Reset done")
 
 if st.button("State of Producer"):
-    response = get_status()
-    st.json(response)
+    with st.spinner("Loading producer state..."):
+        response = get_status()
+        st.json(response)
     
 
