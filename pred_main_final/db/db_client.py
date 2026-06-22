@@ -59,6 +59,20 @@ def fetch_latest_cycle_per_engine():
 
     return df
 
+def fetch_engine_history(engine_id):
+    """
+    Return all cycles for one engine from sensor_data, ordered by cycle.
+    Used by the dialog to draw trend charts (anomaly score & RUL over time).
+    """
+    eid = int(engine_id)  # convert numpy.int64 → plain Python int
+    df = pd.read_sql(f"""
+        SELECT engine_id, cycle, ops, sensors
+        FROM sensor_data
+        WHERE engine_id = {eid}
+        ORDER BY cycle
+    """, engine)
+    return df
+
 def reset_database():
     conn = get_connection()
     try:
