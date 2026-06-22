@@ -1,7 +1,13 @@
-Systemanforderungen:
+System:
 
-- CMAPPS train_FD001 Daten werden im Producer mit Rolling Features berechnet
-- KafkaProducer generiert sekündlich Datenfluss (jede Maschinen_id zum Zeitpunkt t) aus CMAPPS train_FD001
-- KafkaConsumer empfängt Daten, führt Anomalie-Detektor aus (später RUL und explainability)
-- Anomaliedaten werden in Postgresql/Timescaledb gespeichert
-- UI verbindet sich mit Datenbank und präsentiert mittels autorefreshing streamlit OK oder Warnungen
+- CMAPPS Daten werden im Producer mit Rolling Features berechnet
+- KafkaProducer generiert im gewählten Sekundeninterval Datenfluss (jede Maschinen_id zum Zeitpunkt t)
+- KafkaConsumer empfängt Daten und speichert diese in Postgresql/Timescaledb ab
+- UI verbindet sich mit Datenbank, skaliert, predicted und präsentiert mittels Ausgaben
+
+Wie starten?
+0. Docker (Desktop) aktiv + Terminal in Pred_main_final offen
+1. docker compose down -v                    #sicherstellen, dass keine Konflikte entstehen
+2. docker compose up --build                #Projekt starten
+3. abwarten und wenn in Konsole api/uvicorn ready ist (Uvicorn running on ...), dann Datensatz in setup auswählen und los geht`s
+
