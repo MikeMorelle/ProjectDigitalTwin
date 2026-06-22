@@ -1,8 +1,8 @@
-CREATE TABLE IF NOT EXISTS anomaly_results (
-    engine_id INT,
-    cycle INT,
-    anomaly_score FLOAT,
-    is_anomaly INT,
-    rul FLOAT,
-    timestamp TIMESTAMP DEFAULT NOW()
+CREATE TABLE IF NOT EXISTS sensor_data (
+    engine_id INT NOT NULL,
+    cycle INT NOT NULL,
+    ops JSONB NOT NULL,
+    sensors JSONB NOT NULL,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (engine_id, cycle)
 );

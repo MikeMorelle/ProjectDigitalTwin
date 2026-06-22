@@ -15,21 +15,25 @@ def compute_features(state):
     features = {}
 
     for s in SENSORS:
-        values = list(state.data[s])
+        values = state.data[s]
 
-        if len(values) == 0:
+        if not values:
             continue
 
-        mean = sum(values) / len(values)
-        if len(values) == 1:
-            std = 0
-
-        else: 
+        values = [float(v) for v in values]
+        
+        n = len(values)
+        mean = sum(values) / n
+        
+        if n > 1:
             var = sum(
                 (x - mean)**2
                 for x in values
             ) / (len(values) - 1)
             std = math.sqrt(var)
+        else: 
+            std = 0.0
+
 
         features[f"{s}_roll_mean"] = mean
         features[f"{s}_roll_std"] = std

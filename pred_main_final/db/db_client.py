@@ -1,8 +1,9 @@
 import psycopg2, time, pandas as pd, os
 from sqlalchemy import create_engine
 from config import POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT
+import json
+from psycopg2.extras import execute_batch
 
-#for later to not get warn
 engine = create_engine(
     f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 )
@@ -22,37 +23,48 @@ def get_connection():
             print("DB connection error:", e)
             time.sleep(5)
 
-def insert_result(conn, row):
-    cur = conn.cursor()
 
-    cur.execute("""
-        INSERT INTO anomaly_results (
-            engine_id,
+def insert_batch(conn, cycle, engines):
+
+    sql = """
+        INSERT INTO sensor_data (engine_id, cycle, ops, sensors) 
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (engine_id, cycle)
+        DO UPDATE SET
+            ops = EXCLUDED.ops,
+            sensors = EXCLUDED.sensors,
+            timestamp = NOW()
+    """
+    rows = [
+        (
+            e["engine_id"],
             cycle,
-            anomaly_score,
-            is_anomaly,
-            rul
-        ) VALUES (%s, %s, %s, %s, %s)
-    """, (
-        row["engine_id"],
-        row["cycle"],
-        row["anomaly_score"],
-        row["is_anomaly"],
-        row["rul"]
-    ))
+            json.dumps(e["ops"]),
+            json.dumps(e["sensors"])
+        )
+        for e in engines
+    ]
+
+    with conn.cursor() as cur:
+        execute_batch(cur, sql, rows)
 
     conn.commit()
 
 def fetch_latest_cycle_per_engine():
     df = pd.read_sql("""
-        SELECT *
-        FROM anomaly_results ar
-        WHERE cycle = (
-            SELECT MAX(cycle) 
-            FROM anomaly_results
-            WHERE engine_id = ar.engine_id)
-        ORDER BY engine_id
+        SELECT DISTINCT ON (engine_id) * 
+        FROM sensor_data
+        ORDER BY engine_id, cycle DESC;
     """, engine)
 
     return df
+
+def reset_database():
+    conn = get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("TRUNCATE TABLE sensor_data;")
+        conn.commit()
+    finally:
+        conn.close()
 

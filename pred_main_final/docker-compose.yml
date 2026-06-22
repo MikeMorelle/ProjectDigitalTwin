@@ -52,6 +52,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     env_file:
       - .env
+    ports:
+      - "8000:8000"
 
   stream2db_consumer:
     build:
@@ -62,8 +64,6 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    volumes:
-      - ./ml/models:/app/models #mount ml models into container
     env_file:
       - .env
 
@@ -78,6 +78,7 @@ services:
       - "8501:8501"
     volumes:
       - .:/app
+      - ./ml/models:/app/models #mount ml models into container
     env_file:
       - .env
 

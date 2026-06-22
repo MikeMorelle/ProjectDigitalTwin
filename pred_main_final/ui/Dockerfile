@@ -8,8 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-COPY . /app
-
 ENV PYTHONPATH=/app
 
 CMD ["streamlit", "run", "ui/app.py"]

@@ -10,3 +10,6 @@ streamlit-autorefresh
 python-dotenv
 pytest
 xgboost
+shap
+fastapi
+requests

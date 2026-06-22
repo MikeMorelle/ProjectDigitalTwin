@@ -8,9 +8,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-COPY . /app
-
 ENV PYTHONPATH=/app
 
-
-CMD ["python", "/app/sensor_stream_producer/producer.py"]
+CMD ["uvicorn", "sensor_stream_producer.api:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -2,58 +2,78 @@ import json, time
 from kafka import KafkaProducer, KafkaConsumer
 from ml.data.load_data import load_data
 from collections import defaultdict
-from event_builder import EngineState, compute_features
-from config import SENSORS, PROD_SLEEP_SECONDS, INPUT_TOPIC
+from sensor_stream_producer.event_builder import EngineState, compute_features
+from config import SENSORS, INPUT_TOPIC, KAFKA_BOOTSTRAP
 import joblib
+from sensor_stream_producer.state_manager import state
 
-bundle1 = joblib.load("ml/models/latest/ano_model.joblib")
-scaler = bundle1["scalers"][1]
+bundle = joblib.load("ml/models/latest/ano_model.joblib")
+scaler = bundle["scalers"][1]
 
-#PRODUCER
-def create_producer():
-    producer = None
-    while producer is None:
-        try:
-            producer = KafkaProducer(bootstrap_servers="kafka:9092", value_serializer=lambda v: json.dumps(v).encode("utf-8"))
-        except Exception as e:
-            print("KAFKA ERROR:", e)
-            time.sleep(5)
-    return producer
 
-def main():
-    df = load_data()
+class KafkaProducerSingleton:
+    instance = None
 
-    producer = create_producer()
+    @classmethod
+    def get(cls):
+        if cls.instance is None:
+            try:
+                cls.instance = KafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP, value_serializer=lambda v: json.dumps(v).encode("utf-8"))
+            except Exception as e:
+                print("ERROR during Kafka Prod", e)
 
-    engine_states = defaultdict(EngineState)
-    
-    for cycle in sorted(df["cycle"].unique()):
-        cycle_event = {
-            "cycle": int(cycle),
-            "engines": []
-        }
-        cycle_rows = df[df["cycle"] == cycle].copy()
+        return cls.instance
 
-        cycle_rows[SENSORS] = scaler.transform(cycle_rows[SENSORS].astype(float))
+def produce_dataset(ds_name:str, interval: int):
 
-        for _, row in cycle_rows.iterrows():
-            engine_id = int(row["engine_id"])
-            state = engine_states[engine_id]
+    try:
+        df = load_data(ds_name)
 
-            for s in SENSORS:
-                state.data[s].append(float(row[s]))
+        producer = KafkaProducerSingleton.get()
 
-            features = compute_features(state)
+        engine_states = defaultdict(EngineState)
+        
+        for cycle, cycle_rows in df.groupby("cycle", sort=True):
 
-            cycle_event["engines"].append({
-                "engine_id": int(engine_id),
-                **features
-            })
+            if not state.running.is_set():
+                break   #stop if no event
 
-        producer.send(INPUT_TOPIC, cycle_event) 
-        producer.flush()
-        time.sleep(PROD_SLEEP_SECONDS)
+            cycle_rows = cycle_rows.copy()
 
-if __name__ == "__main__":
-    main()
+            cycle_rows[SENSORS] = scaler.transform(cycle_rows[SENSORS].astype(float))
+            
+            cycle_event = {
+                "cycle": int(cycle),
+                "engines": []
+            }
+
+            for _, row in cycle_rows.iterrows():
+                engine_id = int(row["engine_id"])
+                engine_state = engine_states[engine_id]
+
+                for s in SENSORS:
+                    engine_state.data[s].append(float(row[s]))
+
+                features = compute_features(engine_state)
+
+                cycle_event["engines"].append({
+                    "engine_id": int(engine_id),
+                    "ops": {
+                        "op1": float(row["op1"]),
+                        "op2": float(row["op2"]),
+                        "op3": float(row["op3"]),
+                    },
+                    "sensors": {
+                        key: float(value) for key, value in features.items()
+                    }
+                })
+
+            producer.send(INPUT_TOPIC, cycle_event) 
+            time.sleep(interval)
+
+    except Exception as e: 
+        print(f"Error while producing datset: {e}")
+
+    finally:
+        state.running.clear()
 
