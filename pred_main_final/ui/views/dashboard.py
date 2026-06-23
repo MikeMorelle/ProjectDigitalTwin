@@ -213,8 +213,8 @@ else:
 
     #add trend(current-mean) or z-score + summarize in sensor importance not only engine domain 
 
-# ============================================================
-    # OUR ADDITION 6: Replace the old dataframe + text display
+    # ============================================================
+    # ADDITION 5: Replace the old dataframe + text display
     # with KPI bar, fleet charts, and engine grid
     # ============================================================
     with placeholder.container():
@@ -229,26 +229,27 @@ else:
             st.metric("Normal Engines", int((df["status"] == "Normal").sum()))
 
         # ---------- Fleet Analytics Charts ----------
-        st.divider()
-        st.subheader("Fleet Analytics")
-        chart_col1, chart_col2 = st.columns(2)
-        with chart_col1:
-            # Group anomaly scores into buckets and count them
-            bins = [-float("inf"), -0.5, 0, 0.5, float("inf")]
-            labels = ["Very Low", "Low", "Medium", "High"]
-            df["score_bucket"] = pd.cut(df["anomaly_score"], bins=bins, labels=labels)
-            bucket_counts = df["score_bucket"].value_counts().sort_index()
-            st.bar_chart(bucket_counts, use_container_width=True)
-            st.caption("Anomaly Score Distribution")
-        with chart_col2:
-            # Count how many anomaly events each engine has
-            anomaly_counts = df[df["status"] == "Anomaly"]["engine_id"].value_counts()
-            if not anomaly_counts.empty:
-                st.bar_chart(anomaly_counts, use_container_width=True)
-                st.caption("Anomaly Count per Engine")
-            else:
-                st.info("No anomalies to display")
-
+        
+        # st.divider()
+        # st.subheader("Fleet Analytics")
+        # chart_col1, chart_col2 = st.columns(2)
+        # with chart_col1:
+        #     # Group anomaly scores into buckets and count them
+        #     bins = [-float("inf"), -0.5, 0, 0.5, float("inf")]
+        #     labels = ["Very Low", "Low", "Medium", "High"]
+        #     df["score_bucket"] = pd.cut(df["anomaly_score"], bins=bins, labels=labels)
+        #     bucket_counts = df["score_bucket"].value_counts().sort_index()
+        #     st.bar_chart(bucket_counts, use_container_width=True)
+        #     st.caption("Anomaly Score Distribution")
+        # with chart_col2:
+        #     # Count how many anomaly events each engine has
+        #     anomaly_counts = df[df["status"] == "Anomaly"]["engine_id"].value_counts()
+        #     if not anomaly_counts.empty:
+        #         st.bar_chart(anomaly_counts, use_container_width=True)
+        #         st.caption("Anomaly Count per Engine")
+        #     else:
+        #         st.info("No anomalies to display")
+        
         # ---------- Engine Card Grid (10 columns) ----------
         st.divider()
         st.subheader("Fleet Overview")
@@ -263,8 +264,8 @@ else:
 
             with cols[i % 10]:                   # distribute across 10 columns, wrap to next row
                 if st.button(f"{icon} {eng} - {status}",
-                             key=f"eng_{eng}",
-                             use_container_width=True):
+                                key=f"eng_{eng}",
+                                use_container_width=True):
                     show_engine_detail(latest)   # open the pop‑up with this engine's data
 
     st_autorefresh(interval=15000, key="datarefresh")
