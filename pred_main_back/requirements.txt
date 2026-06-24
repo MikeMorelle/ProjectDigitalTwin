@@ -1,0 +1,17 @@
+kafka-python
+pandas
+joblib
+scikit-learn
+psycopg2-binary
+pyarrow
+sqlalchemy
+streamlit
+streamlit-autorefresh
+python-dotenv
+pytest
+xgboost
+shap
+fastapi
+requests
+tensorflow
+torch
