@@ -5,9 +5,6 @@ import pandas as pd
 import shap
 import numpy as np
 import streamlit as st
-from ml.data.load_data import load_data # to read the raw NASA sensor file
-import requests # to ask the API which dataset is active
-
 #
 #DONT FORGET SCALING
 #
@@ -29,48 +26,10 @@ def get_status(score):
     else:
         return "Normal"
 
-# ============================================================
-# ADDITION 1: Helper functions for raw sensor data
-# These load the original NASA text files so we can show
-# real physical sensor values (not processed features).
-# ============================================================
 
-def get_current_dataset():
-    """
-    Ask the FastAPI service which dataset is currently streaming.
-    If the API is unavailable, fall back to 'FD001'.
-    """
-    try:
-        resp = requests.get("http://api:8000/status", timeout=2)
-        data = resp.json()
-        return data.get("dataset", "FD001")
-    except:
-        return "FD001"
-
-@st.cache_data
-def get_raw_data(ds_name=None):
-    """
-    Load the raw NASA dataset ONCE and cache it in memory.
-    ds_name: which dataset to load (e.g. 'FD001', 'FD002').
-    If not given, we auto‑detect from the API.
-    """
-    if ds_name is None:
-        ds_name = get_current_dataset()
-    return load_data(ds_name)
-
-def get_engine_raw_sensors(engine_id):
-    """
-    From the raw dataset, extract only the sensor columns
-    (sensor_1, sensor_2, … sensor_21) plus the cycle number
-    for one specific engine. Sorted from oldest to newest cycle.
-    """
-    df = get_raw_data()                                    # get the cached dataset
-    eng_df = df[df["engine_id"] == int(engine_id)].copy()  # keep only one engine
-    sensor_cols = [c for c in eng_df.columns if c.startswith("sensor_")]  # find sensor columns
-    return eng_df[["cycle"] + sensor_cols].sort_values("cycle")           # return cycle + sensors
 
 # ============================================================
-# ADDITION 2: Dialog – shown when an engine card is clicked (POP UP)
+# ADDITION 1: Dialog – shown when an engine card is clicked (POP UP)
 # ============================================================
 
 @st.dialog("Engine Detail", width="large")
@@ -130,23 +89,33 @@ def show_engine_detail(engine_data):
             st.line_chart(history.set_index("cycle")["rul"], use_container_width=True)
             st.caption("RUL per Cycle (higher = more life left)")
 
-    # ---- Raw Sensor Trends (real physical values from the NASA file) ----
-    st.subheader("Sensor Trends (Raw Values)")
-    raw = get_engine_raw_sensors(eng)
-    if raw.empty:
-        st.info("No raw sensor data for this engine.")
-    else:
-        all_sensors = [c for c in raw.columns if c != "cycle"]
-        default_sensors = all_sensors[:3]  # pre‑select the first three sensors
+    # ---------- Sensor Trends (Live from DB) ----------
+    st.subheader("Sensor Trends (Live Stream)")
+    # history was already fetched above
+    if not history.empty:
+        # Expand the JSON 'sensors' column into real columns
+        sensors_expanded = history["sensors"].apply(pd.Series)
+        sensors_expanded["cycle"] = history["cycle"]
+        sensors_expanded = sensors_expanded.set_index("cycle")
+
+        all_sensors = sorted(sensors_expanded.columns.tolist())
+        # Pre‑select the SHAP top factors (if available), else the first three sensors
+        if top_factors:
+            default_sensors = [s for s in top_factors if s in all_sensors]
+            if not default_sensors:  # fallback if none match
+                default_sensors = all_sensors[:3]
+        else:
+            default_sensors = all_sensors[:3]
         selected = st.multiselect(
             "Select sensors to display",
             all_sensors,
             default=default_sensors,
-            key=f"sensors_{eng}"           # unique key per engine
+            key=f"sensors_{eng}"
         )
         if selected:
-            chart_data = raw.set_index("cycle")[selected]
-            st.line_chart(chart_data, use_container_width=True)
+            st.line_chart(sensors_expanded[selected], use_container_width=True)
+    else:
+        st.info("No sensor data yet for this engine.")
 
 df = fetch_latest_cycle_per_engine()
 
@@ -183,13 +152,13 @@ else:
         df.at[i, "top_factors"] = list(top3.index)
     
     # ============================================================
-    # ADDITION 3: compute status from anomaly score
+    # ADDITION 2: compute status from anomaly score
     # (instead of the old get_status function which used is_anomaly)
     # ============================================================
     df["status"] = df["anomaly_score"].apply(lambda x: "Anomaly" if x < 0 else "Normal")
 
     # ============================================================
-    # ADDITION 4: define compute_predictions HERE inside Engine detail (POP UP),
+    # ADDITION 3: define compute_predictions HERE inside Engine detail (POP UP),
     # because it needs the loaded models (rul_model, ano_model)
     # ============================================================
     def compute_predictions(history_df):
@@ -214,7 +183,7 @@ else:
     #add trend(current-mean) or z-score + summarize in sensor importance not only engine domain 
 
     # ============================================================
-    # ADDITION 5: Replace the old dataframe + text display
+    # ADDITION 4: Replace the old dataframe + text display
     # with KPI bar, fleet charts, and engine grid
     # ============================================================
     with placeholder.container():
@@ -265,7 +234,7 @@ else:
             with cols[i % 10]:                   # distribute across 10 columns, wrap to next row
                 if st.button(f"{icon} {eng} - {status}",
                                 key=f"eng_{eng}",
-                                use_container_width=True):
+                                width='stretch'):
                     show_engine_detail(latest)   # open the pop‑up with this engine's data
 
     st_autorefresh(interval=15000, key="datarefresh")
