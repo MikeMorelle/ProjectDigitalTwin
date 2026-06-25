@@ -1,6 +1,12 @@
 import torch.nn as nn
+import json
+import joblib
+import torch
+import pandas as pd
+import numpy as np
+from pathlib import Path
 
-class LSTMModel(nn.Module):
+class LSTM(nn.Module):
 
     def __init__(self, input_size, hidden_size=64, num_layers=2, dropout=0.2):
         super().__init__()
@@ -23,13 +29,6 @@ class LSTMModel(nn.Module):
         return self.fc(out).squeeze()
 
 
-import json
-import joblib
-import torch
-import pandas as pd
-import numpy as np
-from pathlib import Path
-
 def load_LSTM_model():
     device = "cpu"
 
@@ -41,7 +40,7 @@ def load_LSTM_model():
 
     loaded_scaler = joblib.load("ml/models/latest/scaler.pkl")
 
-    loaded_model = LSTMModel(
+    loaded_model = LSTM(
         input_size  = loaded_config['input_size'],
         hidden_size = loaded_config['hidden_size'],
         num_layers  = loaded_config['num_layers'],

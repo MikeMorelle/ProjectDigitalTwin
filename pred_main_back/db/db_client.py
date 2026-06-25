@@ -80,7 +80,7 @@ def fetch_engine_history(engine_id):
     """
     eid = int(engine_id)  # convert numpy.int64 → plain Python int
     df = pd.read_sql(f"""
-        SELECT engine_id, cycle, ops, sensors
+        SELECT engine_id, cycle, ops, sensors, anomaly_score, rul
         FROM sensor_data
         WHERE engine_id = {eid}
         ORDER BY cycle

@@ -8,6 +8,9 @@ import joblib
 import numpy as np, pandas as pd
 import threading, torch
 from ml.models.load_LSTM import load_LSTM_model
+from ml.models.registry import ModelRegistry
+from ml.models.prediction_service import PredictionService
+from kafka_manager.state_manager import StreamManager
 
 def deserializer(value):
     if value is None:
@@ -29,31 +32,23 @@ class Consumer:
                     INPUT_TOPIC,
                     bootstrap_servers=KAFKA_BOOTSTRAP,
                     value_deserializer=deserializer,
-                    auto_offset_reset="latest",
-                    group_id="anomaly-consumer"
+                    auto_offset_reset="earliest",
+                    group_id=f"anomaly-consumer"
                 )
                 break
             except Exception as e:
                 print(f"Kafka consumer error at time step {i}:", e)
                 time.sleep(5)
 
-        self.iso_model = bundle["model"]
-        self.iso_scaler = bundle["scalers"][1]
-        self.iso_feature_cols = bundle["feature_cols"]
-        self.loaded_model, self.loaded_scaler, self.lstm_feature_cols, self.lstm_seq_length = load_LSTM_model()
-        self.sequence = SequenceBuilder(self.lstm_seq_length)
-        self.rolling = RollingFeatureBuilder()
+        models = ModelRegistry.load_models()
 
-        self.stop_event = threading.Event()
-    
+        self.prediction_service = PredictionService(models)
+
     def run(self):
 
         conn = get_connection()
 
         for msg in self.consumer:
-
-            if self.stop_event.is_set():
-                break
 
             data = msg.value
 
@@ -61,62 +56,28 @@ class Consumer:
 
             cycle = data["cycle"]
 
+            dataset_num = data["dataset"]
+
             for engine in data["engines"]:
-                engine_id = engine["engine_id"]
+                try:
 
-                current_ops = engine["ops"]
-                current_sensors = engine["sensors"]
+                    prediction = (
+                        self.prediction_service.predict(engine, dataset_num)
+                    )
 
+                    results.append({
+                        "engine_id": engine["engine_id"],
+                        "cycle": cycle,
+                        "ops": engine["ops"],
+                        "sensors": engine["sensors"],
+                        **prediction
+                    })
 
-                ops_data = {
-                    "op_setting_1": current_ops["op_1"],
-                    "op_setting_2": current_ops["op_2"],
-                    "op_setting_3": current_ops["op_3"]
-                }
+                except Exception as e:
+                    print(f"ML failed: {e}")
 
-                sensors_data = {s: current_sensors[s] for s in SENSORS}
-
-                current_features = {**ops_data, **sensors_data}
-
-                merged_df = pd.DataFrame([current_features], columns=self.lstm_feature_cols)
-
-                scaled = self.loaded_scaler.transform(merged_df)
-                scaled_df = pd.DataFrame(scaled, columns=self.lstm_feature_cols)
-
-                X = self.sequence.transform(scaled_df, engine_id)
-
-                self.loaded_model.eval() 
-                with torch.no_grad():
-                    rul_prediction = self.loaded_model(X).item()
-
-                #############################
-
-                sensors_df = pd.DataFrame([[engine["sensors"][s] for s in SENSORS]], columns=SENSORS)
-
-                scaled = self.iso_scaler.transform(sensors_df)
-
-                features = self.rolling.update(engine_id, scaled[0], engine["ops"])
-                
-                if features is None:
-                    print("Empty features", flush=True)
-                    continue
-
-                X = pd.DataFrame([[features[c] for c in self.iso_feature_cols]], columns=self.iso_feature_cols)
-
-                score = self.iso_model.decision_function(X)[0]
-                pred = self.iso_model.predict(X)
-
-                results.append({
-                    "engine_id": engine_id,
-                    "cycle": cycle,
-                    "ops": engine["ops"],
-                    "sensors": engine["sensors"],
-                    "anomaly_score": float(score),
-                    "is_anomaly": bool(pred==-1),
-                    "rul": rul_prediction
-                })
-
-            insert_batch(conn, data["cycle"], results)
+            if results:
+                insert_batch(conn, cycle, results)
 
 if __name__ == "__main__":
     consumer = Consumer()

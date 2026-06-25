@@ -12,33 +12,41 @@ class StreamManager:
         self.producer = producer
         self.stop_event = threading.Event()
         self.thread = None
+        self.lock = threading.Lock()
+
         self.run_id = None
         self.config = None
 
     def start(self, config): 
-        if self.is_running():
-            return False
-        self.stop_event.clear()
+        with self.lock:
+            if self.is_running():
+                return False
+            
+            self.stop_event.clear()
 
-        self.run_id = str(uuid.uuid4())
-        self.config = config
+            self.run_id = str(uuid.uuid4())
+            self.config = config
 
-        self.thread = threading.Thread(
-            target = self.producer.stream,
-            args=(config, self.stop_event),
-            daemon=True
-        )
+            self.thread = threading.Thread(
+                target = self.producer.stream,
+                args=(config, self.stop_event, self.run_id),
+                daemon=True
+            )
 
-        self.thread.start()
-    
-        return True
-    
+            self.thread.start()
+        
+            return True
+        
     def stop(self):
-        self.stop_event.set()
+        with self.lock:
+            self.stop_event.set()
 
-        if self.thread:
-            self.thread.join(timeout=2)
+            if self.thread:
+                self.thread.join()
 
+            self.thread = None
+            self.run_id = None
+            
     def is_running(self):
         return self.thread and self.thread.is_alive()
     

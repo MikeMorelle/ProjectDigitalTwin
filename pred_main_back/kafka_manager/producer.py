@@ -16,7 +16,7 @@ class Producer:
             except Exception as e: 
                 print(f"Error initializing Kafka Producer in {i}th attempt.")
 
-    def stream(self, config: ProducerConfig, stop_event):
+    def stream(self, config: ProducerConfig, stop_event, run_id):
         try:    
             df = load_data(config.dataset)
             
@@ -28,6 +28,8 @@ class Producer:
                 cycle_rows = cycle_rows.copy()
                 
                 cycle_event = {
+                    "run_id": run_id,
+                    "dataset": config.dataset,
                     "cycle": int(cycle),
                     "engines": []
                 }
@@ -48,8 +50,11 @@ class Producer:
                         }
                     })
 
-                self.producer.send(INPUT_TOPIC, cycle_event) 
-                time.sleep(config.interval)
+                future = self.producer.send(INPUT_TOPIC, cycle_event) 
+                future.get(timeout=10)
+                
+                if stop_event.wait(config.interval):
+                    break
 
         except Exception as e: 
             print(f"Error while producing datset: {e}")
