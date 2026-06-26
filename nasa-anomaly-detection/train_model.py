@@ -103,7 +103,7 @@ def compute_rolling_features(df, window=10):
                 .std()
                 .values
             )
-    
+    df.fillna(0, inplace=True)   # Fix: first std value is NaN
     return df
 
 

@@ -83,12 +83,17 @@ for engine in data['unit_id'].unique():
             data.loc[mask, sensor].rolling(window=window, min_periods=1).std().values
         )
 
+# FIX: First std value is NaN — fill with 0
+data.fillna(0, inplace=True)
+
 # Predict anomaly scores and binary flags
 print("Predicting anomalies...")
 data['anomaly_score'] = model.decision_function(data[feature_cols])
 data['is_anomaly']    = (model.predict(data[feature_cols]) == -1).astype(int)
 
 # Fix warmup cycles: first 10 cycles are always NOT anomalies
+# (The alert function itself now ignores only the first 5 cycles;
+#  we keep is_anomaly=0 for the first 10 for consistency with training.)
 for engine in data['unit_id'].unique():
     mask = data['unit_id'] == engine
     data.loc[mask & (data['cycle'] <= window), 'is_anomaly'] = 0
@@ -139,4 +144,4 @@ if alerted_engines > 0:
 # Save results
 output_file = f'predictions_FD00{dataset_num}.csv'
 data[['unit_id', 'cycle', 'anomaly_score', 'is_anomaly', 'alert_level']].to_csv(output_file, index=False)
-print(f"\nResults saved to: {output_file}")ts saved to: {output_file}")
+print(f"\nResults saved to: {output_file}")
