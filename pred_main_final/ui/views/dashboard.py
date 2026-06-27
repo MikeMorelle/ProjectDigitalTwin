@@ -98,14 +98,10 @@ def show_engine_detail(engine_data):
         sensors_expanded["cycle"] = history["cycle"]
         sensors_expanded = sensors_expanded.set_index("cycle")
 
-        all_sensors = sorted(sensors_expanded.columns.tolist())
-        # Pre‑select the SHAP top factors (if available), else the first three sensors
-        if top_factors:
-            default_sensors = [s for s in top_factors if s in all_sensors]
-            if not default_sensors:  # fallback if none match
-                default_sensors = all_sensors[:3]
-        else:
-            default_sensors = all_sensors[:3]
+        all_sensors = sorted([s for s in sensors_expanded.columns if "roll_mean" in s])
+        # Default: first 3 roll_mean sensors (clean, intuitive start)
+        default_sensors = all_sensors[:3]
+
         selected = st.multiselect(
             "Select sensors to display",
             all_sensors,
@@ -116,6 +112,113 @@ def show_engine_detail(engine_data):
             st.line_chart(sensors_expanded[selected], use_container_width=True)
     else:
         st.info("No sensor data yet for this engine.")
+
+    # ============================================================
+    # Baseline Deviation – how far has each sensor drifted?
+    # ============================================================
+    st.divider()
+    st.subheader("Baseline Deviation")
+
+    # We can only do this if we have enough history and SHAP info
+    if history.empty or len(history) < 10:
+        st.info("Need at least 10 cycles to compute baseline.")
+    elif not top_factors:
+        st.info("No SHAP factors available for this engine.")
+    else:
+        # ---------- 1. Build a table from the sensor JSON ----------
+        # Each row = one cycle, each column = one sensor (e.g. sensor_2_roll_mean)
+        sensor_table = history["sensors"].apply(pd.Series)
+        sensor_table["cycle"] = history["cycle"]
+        sensor_table = sensor_table.set_index("cycle")
+
+        # ---------- 2. Calculate the healthy baseline ----------
+        # We use the first 10 cycles as "healthy"
+        first_10 = sensor_table.index[:10]                    # cycle numbers 1–10
+        healthy_mean = sensor_table.loc[first_10].mean()      # average for each sensor
+        healthy_std  = sensor_table.loc[first_10].std()       # normal variation for each sensor
+
+        # If a sensor never changed at all, set its std to 1 (avoids division by zero)
+        for col in healthy_std.index:
+            if healthy_std[col] == 0:
+                healthy_std[col] = 1.0
+
+        # ---------- 3. Let the user choose the mode ----------
+        mode = st.radio(
+            "Display mode",
+            options=["Deviation (Current – Mean)", "Z‑Score"],
+            horizontal=True,
+            key=f"deviation_mode_{eng}"
+        )
+
+        # ---------- 4. Calculate the values for the chosen mode ----------
+        if mode == "Z‑Score":
+            # Z‑Score = (value – healthy_mean) / healthy_std
+            values_df = (sensor_table - healthy_mean) / healthy_std
+            chart_caption = "Z‑Score = (current – healthy mean) / healthy std"
+            chart_warning = "│Z│ > 2 → unusual, │Z│ > 3 → critical"
+        else:
+            # Deviation = value – healthy_mean
+            values_df = sensor_table - healthy_mean
+            chart_caption = "Deviation = current value – healthy mean"
+            chart_warning = "Large deviation → sensor has drifted from its normal level"
+
+        # ---------- 5. KPI cards for the top 3 SHAP sensors ----------
+        # Get the latest cycle's values
+        latest_values = values_df.iloc[-1]
+
+        # Pick up to 3 SHAP sensors that actually exist in our table
+        kpi_sensors = []
+        for sensor in top_factors:
+            if sensor in latest_values.index:
+                kpi_sensors.append(sensor)
+        kpi_sensors = kpi_sensors[:3]   # only the first 3
+
+        if len(kpi_sensors) > 0:
+            st.caption(f"Current {'z‑score' if mode == 'Z‑Score' else 'deviation'} of top contributing sensors")
+
+            # Create one column per sensor
+            kpi_cols = st.columns(len(kpi_sensors))
+
+            for idx, sensor_name in enumerate(kpi_sensors):
+                current_val = latest_values[sensor_name]
+
+                # Decide the colour based on how far the value is from zero
+                if mode == "Z‑Score":
+                    # For z‑score, 1.5 = warning, 3 = critical
+                    if abs(current_val) >= 3:
+                        icon = "🔴"
+                    elif abs(current_val) >= 1.5:
+                        icon = "🟡"
+                    else:
+                        icon = "🟢"
+                else:
+                    # For deviation, compare to 1.5× and 3× the sensor's own healthy std
+                    sensor_std = healthy_std[sensor_name]
+                    if abs(current_val) >= 3 * sensor_std:
+                        icon = "🔴"
+                    elif abs(current_val) >= 1.5 * sensor_std:
+                        icon = "🟡"
+                    else:
+                        icon = "🟢"
+
+                with kpi_cols[idx]:
+                    st.metric(label=sensor_name, value=f"{icon} {current_val:.2f}")
+
+        # ---------- 6. Trend chart ----------
+        # Default selection = the same KPI sensors, or first 3 sensors if none
+        default_sensors = kpi_sensors if len(kpi_sensors) > 0 else sorted(values_df.columns.tolist())[:3]
+
+        selected = st.multiselect(
+            f"Select sensors ({'z‑score' if mode == 'Z‑Score' else 'deviation'})",
+            sorted(values_df.columns.tolist()),
+            default=default_sensors,
+            key=f"dev_sensors_{eng}"
+        )
+
+        if selected:
+            st.line_chart(values_df[selected], use_container_width=True)
+            st.caption(chart_caption)
+            st.caption(chart_warning)
 
 df = fetch_latest_cycle_per_engine()
 
@@ -237,4 +340,4 @@ else:
                                 width='stretch'):
                     show_engine_detail(latest)   # open the pop‑up with this engine's data
 
-    st_autorefresh(interval=15000, key="datarefresh")
+    st_autorefresh(interval=150000, key="datarefresh")
