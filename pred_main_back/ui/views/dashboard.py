@@ -3,18 +3,34 @@ from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 import numpy as np
 import streamlit as st
+import requests
 
 st.set_page_config(page_title="Predictive Maintenance", layout="wide")
 st.title("Live Anomaly Monitoring")
 
 placeholder = st.empty()
 
+def get_status():
+    try: 
+        response = requests.get("http://api:8000/status")
+        return response.json()
+    except:
+        return {"running": False}
+
 # =========================
 # SESSION STATE
 # =========================
-if "selected_engine" not in st.session_state:
-    st.session_state.selected_engine = None
-
+if "run_id" not in st.session_state:
+    try:
+        status = requests.get("http://api:8000/status").json()
+        st.session_state.run_id = status.get("run_id")
+    except:
+        st.write("Start run first!")
+try:
+    st.write(st.session_state.run_id)
+except:
+    st.write("Start run first!")
+    st.stop()
 
 def get_status(is_anomaly: bool):
     return "Anomaly" if is_anomaly else "Normal"
@@ -62,7 +78,7 @@ def show_engine_detail(engine_data):
     # =========================
     st.subheader("Trends Over Time")
 
-    history = fetch_engine_history(eng)
+    history = fetch_engine_history(eng, st.session_state.run_id)
 
     if not history.empty:
         st.line_chart(history.set_index("cycle")["anomaly_score"])
@@ -94,7 +110,7 @@ def show_engine_detail(engine_data):
 # =========================
 # MAIN DATA
 # =========================
-df = fetch_latest_cycle_per_engine()
+df = fetch_latest_cycle_per_engine(st.session_state.run_id)
 
 if df.empty:
     with placeholder.container():
@@ -144,4 +160,4 @@ else:
                 ):
                     show_engine_detail(latest)
 
-    st_autorefresh(interval=15000, key="refresh_main")
+    #st_autorefresh(interval=15000, key="refresh_main")

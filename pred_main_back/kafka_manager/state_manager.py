@@ -6,6 +6,7 @@ import uuid
 class ProducerConfig: 
     dataset: str
     interval: int
+    fault_config: dict 
 
 class StreamManager:
     def __init__(self, producer):
@@ -55,6 +56,6 @@ class StreamManager:
             "running": self.is_running(),
             "run_id": self.run_id,
             "dataset": self.config.dataset if self.config else None,
-            "interval": self.config.interval if self.config else None
+            "interval": self.config.interval if self.config else None,
+            "bias": self.config.fault_config if self.config else None
         }
-

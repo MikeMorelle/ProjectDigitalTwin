@@ -11,6 +11,7 @@ class IsolationForestModel(PredictionModel):
         self.model = bundle["model"]
         self.scaler = bundle["scalers"]
         self.feature_cols = bundle["feature_cols"]
+        self.cluster_models = bundle["cluster_models"]
         self.rolling = RollingFeatureBuilder()
 
     def predict(self, engine, dataset_num):
@@ -18,8 +19,18 @@ class IsolationForestModel(PredictionModel):
         engine_id = engine["engine_id"]
         sensors_df = pd.DataFrame([[engine["sensors"][s] for s in SENSORS]], columns=SENSORS)
 
-        if dataset_num == "FD001":
-            scaled = self.scaler[1].transform(sensors_df)
+        dataset_id = int(dataset_num.replace("FD",""))
+
+        if dataset_id in [2,4]:
+            op_df = pd.DataFrame([engine["ops"]], columns=["op_1", "op_2", "op_3"])
+
+            cluster = self.cluster_models[dataset_id].predict(op_df)[0]
+            
+            scaler = self.scaler[dataset_id][cluster]
+            scaled = scaler.transform(sensors_df)
+
+        else:
+            scaled = self.scaler[dataset_id].transform(sensors_df)
 
         features = self.rolling.update(engine_id, scaled[0], engine["ops"])
                 
@@ -36,3 +47,6 @@ class IsolationForestModel(PredictionModel):
             "anomaly_score": float(score),
             "is_anomaly": bool(pred==-1)
         }
+    
+    def clear(self):
+        self.rolling.clear()

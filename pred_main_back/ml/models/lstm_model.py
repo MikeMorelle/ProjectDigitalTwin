@@ -47,3 +47,6 @@ class LSTMModel(PredictionModel):
         return {
             "rul": float(rul_prediction)
         }
+    
+    def clear(self):
+        self.sequence.clear()
