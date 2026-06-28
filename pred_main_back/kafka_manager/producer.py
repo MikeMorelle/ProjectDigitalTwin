@@ -55,7 +55,8 @@ class Producer:
                             "op_3": float(row["op_3"]),
                         },
 
-                        "sensors": sensors
+                        "sensors": sensors,
+                        "true_rul": int(row["true_rul"])
                         
                     })
 

@@ -78,7 +78,9 @@ class Consumer:
                         "cycle": cycle,
                         "ops": engine["ops"],
                         "sensors": engine["sensors"],
-                        **prediction
+                        "true_rul": engine["true_rul"],
+                        **prediction,
+
                     })
 
                 except Exception as e:

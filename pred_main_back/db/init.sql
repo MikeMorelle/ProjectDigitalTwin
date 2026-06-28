@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS sensor_data (
     cycle INT NOT NULL,
     ops JSONB NOT NULL,
     sensors JSONB NOT NULL,
+    true_rul INT NOT NULL,
     anomaly_score DOUBLE PRECISION,
     is_anomaly BOOLEAN,
     rul REAL,

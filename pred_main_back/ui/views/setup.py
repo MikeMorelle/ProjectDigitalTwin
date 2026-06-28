@@ -26,7 +26,7 @@ interval = st.selectbox(
 )
 
 bias = st.selectbox(
-    "Select fault scenario",
+    "Which fault scenario do you want to implement?",
     list(fault_config.keys())
 )
 

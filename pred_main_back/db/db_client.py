@@ -26,8 +26,8 @@ def get_connection():
 def insert_batch(conn, cycle, engines):
 
     sql = """
-        INSERT INTO sensor_data (run_id, engine_id, cycle, ops, sensors, anomaly_score, is_anomaly, rul) 
-        VALUES (%s,%s, %s, %s, %s, %s, %s, %s)
+        INSERT INTO sensor_data (run_id, engine_id, cycle, ops, sensors, true_rul, anomaly_score, is_anomaly, rul) 
+        VALUES (%s,%s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (run_id, engine_id, cycle)
         DO UPDATE SET
             ops = EXCLUDED.ops,
@@ -44,6 +44,7 @@ def insert_batch(conn, cycle, engines):
             cycle,
             json.dumps(e["ops"]),
             json.dumps(e["sensors"]),
+            e.get("true_rul"),
             e.get("anomaly_score"),
             e.get("is_anomaly"),
             e.get("rul")
