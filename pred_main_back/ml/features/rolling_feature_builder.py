@@ -1,4 +1,4 @@
-import pandas as pd, numpy as np
+import numpy as np
 from collections import deque
 from config import ROLLING_WINDOW_SIZE, SENSORS
 
@@ -15,7 +15,7 @@ class RollingFeatureBuilder:
 
         self.buffers[engine_id].append(sensors)
 
-        data = np.array(self.buffers[engine_id])
+        data = np.stack(self.buffers[engine_id])
 
         features = {}
 
@@ -26,10 +26,13 @@ class RollingFeatureBuilder:
             features[f"{sensor}_roll_std"] = (
                 data[:, i].std()
                 if len(data) > 1
-                else np.nan
+                else 0.0
             )
 
         for op in ["op_1", "op_2", "op_3"]:
             features[op] = ops[op]
 
         return features
+    
+    def clear(self):
+        self.buffers = {}

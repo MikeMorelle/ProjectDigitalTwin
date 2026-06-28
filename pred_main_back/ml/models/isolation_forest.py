@@ -36,3 +36,6 @@ class IsolationForestModel(PredictionModel):
             "anomaly_score": float(score),
             "is_anomaly": bool(pred==-1)
         }
+    
+    def clear(self):
+        self.rolling.clear()

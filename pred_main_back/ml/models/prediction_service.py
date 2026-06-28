@@ -15,3 +15,7 @@ class PredictionService:
                 print(f"{m.__class__.__name__} failed: {e}")
             
         return result
+    
+    def reset(self):
+        for m in self.models:
+            m.clear()

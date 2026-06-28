@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from config import fault_config
 
 st.title("Kafka Control")
 
@@ -21,12 +22,12 @@ dataset = st.selectbox(
 
 interval = st.selectbox(
     "In which time interval (s) do you want the data to be streamed?",
-    [1,2,5, 10, 15,60,90]
+    [5, 10, 15,60,90]
 )
 
 bias = st.selectbox(
-    "Which sensors do you want to have a drift? (engineNrSensorNr)",
-    ["e1s2", "e5s6", "e3s20",]
+    "Select fault scenario",
+    list(fault_config.keys())
 )
 
 #which models + edge/frontend ML calc
@@ -37,15 +38,19 @@ if st.button("Start Streaming!"):
             "http://api:8000/start",
             json = {
                 "dataset": dataset,
-                "interval": interval
+                "interval": interval,
+                "fault_config": fault_config[bias]
         }
     )
+    res = response.json()
+    st.session_state.run_id = res["run_id"]
     st.json(response.json())
-    st.success(f"Start sensor data streaming with {dataset} every {interval} seconds. ")
+    st.success(f"Start sensor data streaming with {dataset} every {interval} seconds. With id: {st.session_state.run_id} ")
 
 if st.button("Reset Streaming"):
-    with st.spinner("Resetting DB..."):
+    with st.spinner("Resetting..."):
         response = requests.post("http://api:8000/reset")
+        st.session_state.run_id = None
     st.success("Reset done")
 
 if st.button("State of Producer"):
@@ -53,4 +58,3 @@ if st.button("State of Producer"):
         response = get_status()
         st.json(response)
     
-

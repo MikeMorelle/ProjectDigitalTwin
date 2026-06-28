@@ -14,7 +14,8 @@ app = FastAPI()
 def start(req: ProducerConfig):
     config = ProducerConfig(
         dataset=req.dataset,
-        interval=req.interval
+        interval=req.interval,
+        fault_config=req.fault_config
     )
 
     manager.start(config)
@@ -28,8 +29,6 @@ def status():
 @app.post("/reset")
 def reset():
     manager.stop()
-    
-    reset_database()
 
     return {"status": "reset_done"}
 

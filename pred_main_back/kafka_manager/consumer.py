@@ -44,13 +44,20 @@ class Consumer:
 
         self.prediction_service = PredictionService(models)
 
+        self.last_run_id = None
+
     def run(self):
 
         conn = get_connection()
 
         for msg in self.consumer:
+            #start = time.perf_counter()
 
             data = msg.value
+
+            if self.last_run_id != data["run_id"]:
+                self.prediction_service.reset()
+                self.last_run_id = data["run_id"]
 
             results = []
 
@@ -66,6 +73,7 @@ class Consumer:
                     )
 
                     results.append({
+                        "run_id": data["run_id"],
                         "engine_id": engine["engine_id"],
                         "cycle": cycle,
                         "ops": engine["ops"],
@@ -75,6 +83,9 @@ class Consumer:
 
                 except Exception as e:
                     print(f"ML failed: {e}")
+
+            #elapsed = time.perf_counter() - start
+            #print(f"Time for ML inference: {elapsed}", flush=True)
 
             if results:
                 insert_batch(conn, cycle, results)

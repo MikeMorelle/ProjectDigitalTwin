@@ -25,3 +25,6 @@ class SequenceBuilder:
         tensor = torch.tensor(seq[np.newaxis], dtype=torch.float32)
 
         return tensor
+    
+    def clear(self):
+        self.history = {}

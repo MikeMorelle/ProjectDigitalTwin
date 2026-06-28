@@ -1,4 +1,5 @@
 CREATE TABLE IF NOT EXISTS sensor_data (
+    run_id UUID NOT NULL,
     engine_id INT NOT NULL,
     cycle INT NOT NULL,
     ops JSONB NOT NULL,
@@ -7,5 +8,5 @@ CREATE TABLE IF NOT EXISTS sensor_data (
     is_anomaly BOOLEAN,
     rul REAL,
     timestamp TIMESTAMPTZ DEFAULT NOW(),
-    PRIMARY KEY (engine_id, cycle)
+    PRIMARY KEY (run_id,engine_id, cycle)
 );
