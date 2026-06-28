@@ -5,6 +5,9 @@ import pandas as pd
 import shap
 import numpy as np
 import streamlit as st
+import requests
+
+
 #
 #DONT FORGET SCALING
 #
@@ -26,7 +29,62 @@ def get_status(score):
     else:
         return "Normal"
 
+# ---- Auto‑refresh state ----
+if "refresh_paused" not in st.session_state:
+    st.session_state.refresh_paused = False          # is the refresh paused?
 
+if "refresh_interval_sec" not in st.session_state:
+    st.session_state.refresh_interval_sec = 15       # default: refresh every 15 seconds
+
+# ============================================================
+# Helper: ask the API what interval the producer is using
+# ============================================================
+def get_api_interval():
+    """
+    Ask the Setup page's API what streaming interval is active.
+    If the API is unreachable, return 15 as a safe default.
+    """
+    try:
+        response = requests.get("http://api:8000/status", timeout=2)
+        data = response.json()
+        return data.get("interval", 15)
+    except:
+        return 15
+    
+# ============================================================
+# Sidebar – Auto‑refresh controls
+# ============================================================
+with st.sidebar:
+    st.header("⚙️ Dashboard Settings")
+
+    # 1. Ask the API what interval the producer is streaming at
+    api_interval = get_api_interval()
+
+    # Show the API streaming interval (auto‑updates from Setup page)
+    st.caption(f"Setup Interval every {api_interval}s")
+    # Show the current dashboard refresh interval (changes instantly)
+    st.caption(f"Dashboard refreshes every {st.session_state.refresh_interval_sec}s")
+
+    # 2. Pause / resume checkbox
+    st.session_state.refresh_paused = st.checkbox(
+        "Pause auto‑refresh",
+        value=st.session_state.refresh_paused
+    )
+
+    # 3. Refresh interval dropdown
+    # Include the API interval in the options so it auto‑matches
+    options = sorted(set([5, 10, 15, 30, 60, api_interval]))
+
+    # Make sure the current value is in the list
+    current = st.session_state.refresh_interval_sec
+    if current not in options:
+        current = api_interval
+
+    st.session_state.refresh_interval_sec = st.selectbox(
+        "Refresh interval (seconds)",
+        options=options,
+        index=options.index(current)
+    )
 
 # ============================================================
 # ADDITION 1: Dialog – shown when an engine card is clicked (POP UP)
@@ -340,4 +398,12 @@ else:
                                 width='stretch'):
                     show_engine_detail(latest)   # open the pop‑up with this engine's data
 
-    st_autorefresh(interval=150000, key="datarefresh")
+    # ---- Auto‑refresh – pause or use chosen interval ----
+    if st.session_state.refresh_paused:
+        # A huge number means "never refresh" (well, once every ~11 days)
+        refresh_ms = int(1e9)
+    else:
+        # Convert seconds to milliseconds
+        refresh_ms = st.session_state.refresh_interval_sec * 1000
+
+    st_autorefresh(interval=refresh_ms, key="datarefresh")
