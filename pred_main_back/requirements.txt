@@ -10,7 +10,7 @@ streamlit-autorefresh
 python-dotenv
 pytest
 xgboost
-shap
+shapiq
 fastapi
 requests
 tensorflow

@@ -67,13 +67,6 @@ def fetch_latest_cycle_per_engine(run_id):
 
     return df
 
-def fetch_all_cycles():
-    df = pd.read_sql("""
-        SELECT *
-        FROM sensor_data
-        ORDER BY engine_id, cycle;
-    """, engine)
-    return df
 
 def fetch_engine_history(engine_id, run_id):
     """
@@ -90,25 +83,4 @@ def fetch_engine_history(engine_id, run_id):
     """, engine, params={"eid": eid, "run_id": run_id})
     return df
 
-def fetch_engine_history2(engine_id):
-
-    eid = int(engine_id)
-
-    df = pd.read_sql("""
-        SELECT *
-        FROM sensor_data
-        WHERE engine_id = %s
-        ORDER BY cycle
-    """, engine, params=(eid,))
-
-    return df
-
-def reset_database():
-    conn = get_connection()
-    try:
-        cur = conn.cursor()
-        cur.execute("TRUNCATE TABLE sensor_data;")
-        conn.commit()
-    finally:
-        conn.close()
 

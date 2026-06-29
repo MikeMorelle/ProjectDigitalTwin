@@ -1,28 +1,11 @@
 import json, time
 from kafka import KafkaConsumer
 from db.db_client import get_connection, insert_batch
-from config import INPUT_TOPIC, KAFKA_BOOTSTRAP, SENSORS
-from ml.features.rolling_feature_builder import RollingFeatureBuilder
-from ml.features.sequence_builder import SequenceBuilder
+from config import INPUT_TOPIC, KAFKA_BOOTSTRAP
 import joblib
-import numpy as np, pandas as pd
-import threading, torch
-from ml.models.load_LSTM import load_LSTM_model
+
 from ml.models.registry import ModelRegistry
 from ml.models.prediction_service import PredictionService
-from kafka_manager.state_manager import StreamManager
-
-def deserializer(value):
-    if value is None:
-        return
-    
-    try:
-        return json.loads(value.decode('utf-8'))
-    except Exception as e:
-        print("Unable to decode", e, flush=True)
-        return None
-
-bundle = joblib.load("ml/models/latest/ano_model.joblib")   
 
 class Consumer:
     def __init__(self):
@@ -31,7 +14,6 @@ class Consumer:
                 self.consumer = KafkaConsumer(
                     INPUT_TOPIC,
                     bootstrap_servers=KAFKA_BOOTSTRAP,
-                    value_deserializer=deserializer,
                     auto_offset_reset="earliest",
                     group_id=f"anomaly-consumer"
                 )
@@ -53,7 +35,7 @@ class Consumer:
         for msg in self.consumer:
             #start = time.perf_counter()
 
-            data = msg.value
+            data = json.loads(msg.value.decode("utf-8"))
 
             if self.last_run_id != data["run_id"]:
                 self.prediction_service.reset()
@@ -80,7 +62,6 @@ class Consumer:
                         "sensors": engine["sensors"],
                         "true_rul": engine["true_rul"],
                         **prediction,
-
                     })
 
                 except Exception as e:

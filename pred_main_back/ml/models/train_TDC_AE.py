@@ -1,5 +1,6 @@
 import torch, torch.nn as nn, numpy as np, pandas as pd
 from torch.utils.data import Dataset, DataLoader
+from collections import deque
 
 #Anomalie-Modell von https://arxiv.org/html/2502.19307v3#A2
 
@@ -13,7 +14,7 @@ def load_data():
 
 df = load_data()
 
-def moving_average(x, window=10):
+def moving_average(x, window=12):
     return pd.DataFrame(x).rolling(
         window, 
         min_periods=1
@@ -58,7 +59,7 @@ train_batches = DataLoader(
 #extrahiert latente/niedrigere Dimensioen mit Autoencoder (classical embedology)
 class TDCAE(nn.Module):
 
-    def __init__(self, input_dim=24, latent_dim=8):
+    def __init__(self, input_dim=24, latent_dim=10):
         super().__init__()
 
         self.encoder = nn.Sequential(
@@ -79,16 +80,16 @@ class TDCAE(nn.Module):
     
     def encode(self, x):
         latent = self.encoder(x)
-        z = latent[:,:4]
-        z_dot = latent[:,4:]
+        z = latent[:,:5]
+        z_dot = latent[:,5:]
 
         return z, z_dot
 
     def forward(self,x):
         latent = self.encoder(x)
 
-        z = latent[:,0:4]
-        z_dot = latent[:,4:8]
+        z = latent[:,:5]
+        z_dot = latent[:,5:]
 
         x_rec = self.decoder(latent)
         
@@ -136,7 +137,7 @@ class TDCAETrainer:
             epoch_loss += loss.item()
         return epoch_loss / len(train_batches)
     
-    def fit(self, train_batches, epochs=100):
+    def fit(self, train_batches, epochs=50):
         for epoch in range(epochs):
             loss = self.train_epoch(
                 train_batches
@@ -171,19 +172,38 @@ class TDCAETrainer:
         return upper, lower
 
 
-    def predict(self, x, upper, lower, min_violations=2):
-        self.model.eval()
-        with torch.no_grad():
-            _,z,z_dot = self.model(x)
-            latent = torch.cat([z,z_dot],dim=1)
+class OnlineDetector:
+    def __init__(self, upper_offset, lower_offset, window=12):
+        self.window=window
+        self.upper_offset = upper_offset
+        self.lower_offset = lower_offset
+        self.history = None
+    
+    def update(self, latent):
+        latent = latent.flatten()
 
-        latent = latent.cpu().numpy()
+        if self.history is None:
+            self.history = [
+                deque([value], maxlen=self.window)
+                for value in latent
+            ]
+        
+        baseline= []
 
+        for value, history in zip(latent, self.history):
+            history.append(value)
+            baseline.append(np.mean(history))
+
+        baseline = np.array(baseline)
+
+        upper = baseline + self.upper_offset
+        lower = baseline - self.lower_offset
 
         violations = (
-            (latent > upper) 
+            (latent>upper)
             |
-            (latent < lower)
-        ).sum(axis=1)
+            (latent<lower)
+        )
 
-        return violations >= min_violations
+        return violations.sum() < 2
+        

@@ -34,19 +34,22 @@ bias = st.selectbox(
 
 if st.button("Start Streaming!"):
     with st.spinner("Starting producer..."):
-        response = requests.post(
-            "http://api:8000/start",
-            json = {
-                "dataset": dataset,
-                "interval": interval,
-                "fault_config": fault_config[bias]
-        }
-    )
-    res = response.json()
-    st.session_state.run_id = res["run_id"]
-    st.json(response.json())
-    st.success(f"Start sensor data streaming with {dataset} every {interval} seconds. With id: {st.session_state.run_id} ")
-
+        try:
+            response = requests.post(
+                    "http://api:8000/start",
+                    json = {
+                        "dataset": dataset,
+                        "interval": interval,
+                        "fault_config": fault_config[bias]
+                }
+            )
+            res = response.json()
+            st.session_state.run_id = res["run_id"]
+            st.json(response.json())
+            st.success(f"Start sensor data streaming with {dataset} every {interval} seconds. With id: {st.session_state.run_id} ")
+        except:
+            st.write("Wait until API ready")
+            
 if st.button("Reset Streaming"):
     with st.spinner("Resetting..."):
         response = requests.post("http://api:8000/reset")

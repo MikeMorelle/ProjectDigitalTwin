@@ -3,7 +3,7 @@ from config import SENSORS
 from pathlib import Path
 
 
-def load_data(ds_name):
+def load_test(ds_name):
     test_path = Path(f"ml/data/test_{ds_name}.txt")
     rul_path = Path(f"ml/data/RUL_{ds_name}.txt")
 
@@ -29,7 +29,7 @@ def load_data(ds_name):
 
     return df
 
-def load_test(ds_name):
+def load_data(ds_name):
     path = Path(f"ml/data/train_{ds_name}.txt")
 
     if not path.exists():
@@ -37,5 +37,10 @@ def load_test(ds_name):
             f"Dataset not found: {path}"
         )
     df = pd.read_csv(path, sep=r"\s+", header=None)
-    df.columns = ["engine_id", "cycle", "op1", "op2", "op3"] + SENSORS
+    df.columns = ["engine_id", "cycle", "op_1", "op_2", "op_3"] + SENSORS
+    
+    #failure = letzter Zyklus
+    last_cycle = df.groupby("engine_id")["cycle"].transform("max")
+    df["true_rul"] = last_cycle - df["cycle"]
+
     return df

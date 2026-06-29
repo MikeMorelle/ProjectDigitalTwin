@@ -14,8 +14,8 @@ class IsolationForestModel(PredictionModel):
         self.cluster_models = bundle["cluster_models"]
         self.rolling = RollingFeatureBuilder()
 
-    def predict(self, engine, dataset_num):
-        
+    def build_feature_vector(self, engine, dataset_num):
+                
         engine_id = engine["engine_id"]
         sensors_df = pd.DataFrame([[engine["sensors"][s] for s in SENSORS]], columns=SENSORS)
 
@@ -38,8 +38,16 @@ class IsolationForestModel(PredictionModel):
             print("Empty features", flush=True)
             return None
 
-        X = pd.DataFrame([[features[c] for c in self.feature_cols]], columns=self.feature_cols)
+        return pd.DataFrame([[features[c] for c in self.feature_cols]], columns=self.feature_cols)
 
+    def predict(self, engine, dataset_num):
+
+        X = self.build_feature_vector(engine, dataset_num)
+        
+        if X is None:
+            print("Error while feature building")
+            return None
+        
         score = self.model.decision_function(X)[0]
         pred = self.model.predict(X)
 

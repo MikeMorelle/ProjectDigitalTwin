@@ -1,7 +1,7 @@
 import json, time
 from kafka import KafkaProducer, KafkaConsumer
 from ml.data.load_data import load_data
-from kafka_manager.state_manager import ProducerConfig
+from kafka_manager.stream_manager import ProducerConfig
 from config import SENSORS, INPUT_TOPIC, KAFKA_BOOTSTRAP
 from ml.features.sanitize_sensor_data import sanitize_sensors
 

@@ -16,10 +16,16 @@ dashboard = st.Page(
     title="Dashboard"
 )
 
+unchanged_sensors = st.Page(
+    "views/unchanged_sensors.py",
+    title="Unchanged sensors"
+)
+
 pg = st.navigation([
     setup,
     info, 
-    dashboard
+    dashboard,
+    unchanged_sensors
 ])
 
 pg.run()

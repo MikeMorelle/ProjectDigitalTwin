@@ -58,8 +58,6 @@ services:
         condition: service_healthy
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    env_file:
-      - .env
 
   ui:
     build:
@@ -73,23 +71,16 @@ services:
     volumes:
       - .:/app
       - ./ml/models:/app/models #mount ml models into container
-    env_file:
-      - .env
 
   ml:
     build:
       context: .
       dockerfile: ml/Dockerfile
-    env_file:
-      - .env
 
   db:
     build:
       context: .
       dockerfile: db/Dockerfile
-    env_file:
-      - .env
-
   timescaledb:
     image: timescale/timescaledb:latest-pg14
     container_name: timescaledb

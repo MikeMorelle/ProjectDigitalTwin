@@ -5,3 +5,4 @@ Systemanforderungen:
 - KafkaConsumer empfängt Daten, führt Anomalie-Detektor aus (später RUL und explainability)
 - Anomaliedaten werden in Postgresql/Timescaledb gespeichert
 - UI verbindet sich mit Datenbank und präsentiert mittels autorefreshing streamlit OK oder Warnungen
+

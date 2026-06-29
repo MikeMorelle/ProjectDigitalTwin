@@ -1,11 +1,12 @@
 import numpy as np
 from collections import deque
 from config import ROLLING_WINDOW_SIZE, SENSORS
+import joblib
 
 class RollingFeatureBuilder:
 
     def __init__(self):
-        self.window = ROLLING_WINDOW_SIZE
+        self.window = joblib.load("ml/models/latest/ano_model.joblib")["rolling_window"]
         self.buffers = {}
 
     def update(self, engine_id, sensors, ops):
