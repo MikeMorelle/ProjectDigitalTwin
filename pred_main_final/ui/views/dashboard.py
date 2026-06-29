@@ -90,6 +90,25 @@ with st.sidebar:
         index=options.index(current)
     )
 
+    # ---- Engine search & filter ----
+    st.divider()
+    st.subheader("🔍 Engine Filter")
+
+    # Text box – the engineer types part of an engine ID
+    search_text = st.text_input(
+        "Search engine ID",
+        value="",
+        placeholder="e.g. 5 or ENG‑01",
+        key="sidebar_search"
+    )
+
+    # Checkbox – show/hide shutdown engines
+    show_shutdown = st.checkbox(
+        "Show shutdown engines",
+        value=False,                          # by default hide them
+        key="sidebar_show_shutdown"
+    )
+
 # ============================================================
 # simple pop‑up for engine reactivation
 # ============================================================
@@ -437,6 +456,18 @@ else:
             
             # Check if this engine has been shut down
             is_shutdown = eng in st.session_state.shutdown_engines
+
+            # ---- Filter 1: if checkbox is ticked, show ONLY shutdown engines ----
+            if show_shutdown:
+                if not is_shutdown:
+                    continue
+            # If checkbox is NOT ticked, show ALL engines (active + shutdown)
+
+            # ---- Filter 2: exact ID search ----
+            if search_text.strip() != "":
+                # Compare as strings, but trim and ignore case
+                if str(eng).strip().lower() != search_text.strip().lower():
+                    continue
 
             with cols[i % 10]:
                 if is_shutdown:
