@@ -36,6 +36,10 @@ if "refresh_paused" not in st.session_state:
 if "refresh_interval_sec" not in st.session_state:
     st.session_state.refresh_interval_sec = 15       # default: refresh every 15 seconds
 
+# ---- Check shutdown state ----
+if "confirm_shutdown_engine" not in st.session_state:
+    st.session_state.confirm_shutdown_engine = None
+
 # ============================================================
 # Helper: ask the API what interval the producer is using
 # ============================================================
@@ -87,6 +91,24 @@ with st.sidebar:
     )
 
 # ============================================================
+# simple pop‑up for engine reactivation
+# ============================================================
+@st.dialog("Engine Detail", width="large")
+def show_shutdown_engine_detail(engine_data):
+    """
+    Show a simple pop‑up for a shutdown engine.
+    The engineer can reactivate it here.
+    """
+    eng = engine_data["engine_id"]
+    st.header(f"Engine {eng} – Shutdown")
+    st.info("This engine has been shut down and is not being monitored.")
+
+    if st.button(f"🔄 Reactivate Engine {eng}", key=f"reactivate_{eng}"):
+        st.session_state.shutdown_engines.remove(eng)
+        st.success(f"Engine {eng} has been reactivated!")
+        st.rerun()
+
+# ============================================================
 # ADDITION 1: Dialog – shown when an engine card is clicked (POP UP)
 # ============================================================
 
@@ -98,6 +120,22 @@ def show_engine_detail(engine_data):
     which already has anomaly_score, rul, status, and top_factors.
     """
     eng = engine_data["engine_id"]
+
+    # ---------- Shutdown confirmation (if the user just clicked "Shutdown") ----------
+    if st.session_state.confirm_shutdown_engine == eng:
+        st.warning(f"Are you sure you want to shut down Engine {eng}?")
+        col_yes, col_no = st.columns(2)
+        with col_yes:
+            if st.button("Yes, confirm", key=f"confirm_yes_{eng}"):
+                st.session_state.shutdown_engines.append(eng)
+                st.session_state.confirm_shutdown_engine = None
+                st.success(f"Engine {eng} has been shut down.")
+                st.rerun()
+        with col_no:
+            if st.button("Cancel", key=f"confirm_no_{eng}"):
+                st.session_state.confirm_shutdown_engine = None
+                st.rerun()
+        return  
 
     # ---- Basic info ----
     st.header(f"Engine {eng} Detail Report")
@@ -278,6 +316,12 @@ def show_engine_detail(engine_data):
             st.caption(chart_caption)
             st.caption(chart_warning)
 
+    # ---- Shutdown button (only show if NOT already confirming) ----
+    if st.session_state.confirm_shutdown_engine != eng:
+        st.divider()
+        if st.button(f"🛑 Shutdown Engine {eng}", key=f"shutdown_trigger_{eng}"):
+            st.session_state.confirm_shutdown_engine = eng
+
 df = fetch_latest_cycle_per_engine()
 
 if df.empty:
@@ -390,13 +434,23 @@ else:
             engine_data = df[df["engine_id"] == eng]
             latest = engine_data.iloc[-1]       # latest cycle for this engine
             status = latest["status"]
-            icon = "🔴" if status == "Anomaly" else "🟢"
+            
+            # Check if this engine has been shut down
+            is_shutdown = eng in st.session_state.shutdown_engines
 
-            with cols[i % 10]:                   # distribute across 10 columns, wrap to next row
-                if st.button(f"{icon} {eng} - {status}",
-                                key=f"eng_{eng}",
-                                width='stretch'):
-                    show_engine_detail(latest)   # open the pop‑up with this engine's data
+            with cols[i % 10]:
+                if is_shutdown:
+                    # Shutdown engine – grey, but still clickable
+                    icon = "⚫"
+                    label = f"{icon} {eng} - Shutdown"
+                    if st.button(label, key=f"eng_{eng}", width='stretch'):
+                        show_shutdown_engine_detail(latest)
+                else:
+                    # Active engine – coloured icon
+                    icon = "🔴" if status == "Anomaly" else "🟢"
+                    label = f"{icon} {eng} - {status}"
+                    if st.button(label, key=f"eng_{eng}", width='stretch'):
+                        show_engine_detail(latest)  # open the pop‑up with this engine's data
 
     # ---- Auto‑refresh – pause or use chosen interval ----
     if st.session_state.refresh_paused:
