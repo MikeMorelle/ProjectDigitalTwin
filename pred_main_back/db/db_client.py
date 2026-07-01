@@ -75,7 +75,7 @@ def fetch_engine_history(engine_id, run_id):
     """
     eid = int(engine_id)  # convert numpy.int64 → plain Python int
     df = pd.read_sql("""
-        SELECT engine_id, cycle, ops, sensors, anomaly_score, rul
+        SELECT engine_id, cycle, ops, sensors, anomaly_score, rul, true_rul
         FROM sensor_data
         WHERE engine_id = %(eid)s
         AND run_id = %(run_id)s
