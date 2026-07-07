@@ -11,10 +11,6 @@ def get_status():
     except:
         return {"running": False}
 
-status = get_status()
-running = status.get("running", False)
-st.write(f"Producer status: {'🟢 running' if running else '🔴 stopped'}")
-
 dataset = st.selectbox(
     "Which dataset do you want to use?",
     ["FD001","FD002","FD003","FD004",]

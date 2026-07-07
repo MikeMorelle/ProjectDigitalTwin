@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 import requests
+import re
 
 st.set_page_config(page_title="Predictive Maintenance", layout="wide")
 st.title("Live Anomaly Monitoring")
@@ -18,6 +19,7 @@ if "run_id" not in st.session_state:
         st.session_state.run_id = status.get("run_id")
     except:
         st.write("Start run first!")
+        st.stop()
 
 # shutdown_engines – list of engine IDs that are currently shut down
 if "shutdown_engines" not in st.session_state:
@@ -52,7 +54,7 @@ def get_api_interval():
         return 15
 
 def fetch_shap_top_factors(engine_id):
-    """Return the top 3 SHAP‑important sensor names for one engine."""
+    """Return the top SHAP sensors for one engine."""
     # First, get the current dataset name from the API
     dataset_num = ""
     try:
@@ -73,12 +75,32 @@ def fetch_shap_top_factors(engine_id):
         )
         data = resp.json()
         contributions = data.get("feature_contributions", [])
-        # Sort by absolute importance, take the top 3 features
-        sorted_contribs = sorted(contributions, key=lambda x: abs(x["value"]), reverse=True)
-        return [item["feature"] for item in sorted_contribs[:3]]
-    except:
-        pass
-    return []
+        interactions = data.get("feature_interactions", [])
+        return contributions, interactions
+    
+    except Exception as e:
+        st.error(f"SHAP API error: {e}")
+        return [], []
+
+def pretty_feature_name(feature):
+    """
+    Converts model features into user-readable names via regex.
+    """
+    match = re.match(r"sensor_(\d+)_roll_(\w+)", feature)
+
+    if match: 
+        sensor_id = match.group(1)
+        statistic = match.group(2)
+        mapping = {
+            "std": "Variance",  #mathematically not correct but easier to understand for customer
+            "mean": "Average"
+        }
+        return f"{mapping.get(statistic, statistic)} of sensor {sensor_id}"
+
+def get_status(row):
+    if row["cycle"] < 10:
+        return "Initializing"
+    return "Anomaly" if row["anomaly_score"] < 0 else "Normal"
 
 # =========================
 # SIDEBAR – settings and filters
@@ -166,7 +188,10 @@ def show_engine_detail(engine_data):
         st.metric("Anomaly Score", f"{engine_data['anomaly_score']:.2f}")
     with col3:
         rul_value = engine_data["rul"]
-        st.metric("Estimated RUL", "N/A" if pd.isna(rul_value) else f"{rul_value:.0f} cycles")
+        if engine_data["cycle"] < 50:
+            st.metric("Estimated RUL", "Collecting data...")
+        else:
+            st.metric("Estimated RUL", "N/A" if pd.isna(rul_value) else f"{rul_value:.0f} cycles")
     with col4:
         true_rul_value = engine_data.get("true_rul")
         st.metric("Real RUL", "N/A" if pd.isna(true_rul_value) else f"{true_rul_value:.0f} cycles")
@@ -181,23 +206,7 @@ def show_engine_detail(engine_data):
     else:
         st.success("🟢 Normal — Engine operating normally.")
 
-    # ---- Top Contributing Factors (SHAP) ----
-    top_factors = engine_data.get("top_factors", [])
     history = fetch_engine_history(eng, st.session_state.run_id)
-
-    if not top_factors and not history.empty:
-        # Try cache first, then API (with a spinner while loading)
-        if eng in st.session_state.shap_cache:
-            top_factors = st.session_state.shap_cache[eng]
-        else:
-            with st.spinner("Loading SHAP explanation…"):
-                top_factors = fetch_shap_top_factors(eng)
-                st.session_state.shap_cache[eng] = top_factors
-
-    if top_factors:
-        st.subheader("Top Contributing Factors")
-        for i, f in enumerate(top_factors, 1):
-            st.write(f"{i}. {f}")
 
     # ---- Historical Trends (anomaly score and RUL) ----
     if not history.empty:
@@ -238,7 +247,7 @@ def show_engine_detail(engine_data):
             key=f"sensors_{eng}"
         )
         if selected:
-            st.line_chart(sensors_expanded[selected], use_container_width=True)
+            st.line_chart(sensors_expanded[selected], width='stretch')
     else:
         st.info("No sensor data yet for this engine.")
 
@@ -323,9 +332,56 @@ def show_engine_detail(engine_data):
             key=f"dev_sensors_{eng}_{mode}"
         )
         if selected_dev:
-            st.line_chart(values_df[selected_dev], use_container_width=True)
+            st.line_chart(values_df[selected_dev], width='stretch')
             st.caption(chart_caption)
             st.caption(chart_warning)
+    
+    #======================================
+    #  ---- Top Contributing Factors (SHAP) ----
+    #===================================
+    st.divider()
+    st.subheader("Explain Prediction (SHAP)")
+    st.info(
+    "Note: Here SHAP explanations show which sensor features had the strongest influence on the model's anomaly decision. "
+    "They explain the model's reasoning, but they do not prove that these features are the direct cause of a machine's failure."
+    )
+    if st.button("Generate SHAP Explanation", key=f"shap_{eng}"):
+        with st.spinner("Loading SHAP explanation…"):
+            contributions, interactions = fetch_shap_top_factors(eng)
+
+            if contributions:
+                st.subheader("Top SHAP drivers")
+                for item in contributions:
+                    feature = pretty_feature_name(item["feature"])
+                    value = item["value"]
+
+                    if value < 0:
+                        st.warning(f"🔴 {feature} contributes towards anomaly prediction ")
+                        
+                    else: 
+                        st.success(f"🟢 {feature} supports normal behaviour ")
+            else:
+                st.info("No SHAP contributions available.")
+
+            if interactions:
+                st.subheader("Top SHAP Interactions")
+
+                for item in interactions:
+                    feature_1 = pretty_feature_name(item["features"][0])
+                    feature_2 = pretty_feature_name(item["features"][1])
+                    value = item["value"]
+
+                    if value < 0:
+                        st.warning(
+                            f"🔴 Anomaly-related interaction:\n\n"
+                            f"{feature_1} + {feature_2} ")
+                    else:
+                         st.success(
+                            f"🟢 Normal-related interaction:\n\n"
+                            f"{feature_1} + {feature_2} ")
+            else:
+                st.info("No SHAP interactions available.")
+
 
     # ---- Shutdown button (only when not already confirming) ----
     if st.session_state.confirm_shutdown_engine != eng:
@@ -344,7 +400,7 @@ if df.empty:
         st_autorefresh(interval=5000, key="dfrefresh")
 
 else:
-    df["status"] = df["anomaly_score"].apply(lambda x: "Anomaly" if x < 0 else "Normal")
+    df["status"] = df.apply(get_status, axis=1)
 
     with placeholder.container():
 
@@ -379,7 +435,13 @@ else:
                     if st.button(f"⚫ Engine: {eng} - Shutdown", key=f"eng_{eng}", width='stretch'):
                         show_shutdown_engine_detail(latest)
                 else:
-                    icon = "🔴" if latest["status"] == "Anomaly" else "🟢"
+                    if latest["status"] == "Anomaly":
+                        icon = "🔴" 
+                    elif latest["status"] == "Normal":
+                        icon = "🟢"
+                    else: #
+                        icon = "⚪"
+
                     if st.button(f"{icon} Engine: {eng} - {latest['status']}", key=f"eng_{eng}", width='stretch'):
                         show_engine_detail(latest)
 

@@ -3,8 +3,8 @@ import json
 import joblib
 import torch
 
+#LSTM model class definition
 class LSTM(nn.Module):
-
     def __init__(self, input_size, hidden_size=64, num_layers=2, dropout=0.2):
         super().__init__()
         self.lstm = nn.LSTM(
@@ -27,8 +27,10 @@ class LSTM(nn.Module):
 
 
 def load_LSTM_model():
+    #if applicable, set device to GPU, for now CPU
     device = "cpu"
 
+    #load the model config, then load the model state dict into a new LSTM instance
     with open("ml/models/latest/config.json") as f:
         loaded_config = json.load(f)
 
@@ -48,6 +50,7 @@ def load_LSTM_model():
         torch.load("ml/models/latest/model_state_dict.pth", map_location=device)
     )
 
+    #set model into eval mode to diable training specific layers like dropout and batchnorm
     loaded_model.eval()
 
     return loaded_model, loaded_scaler, LOADED_FEATURE_COLUMNS, LOADED_SEQ_LENGTH

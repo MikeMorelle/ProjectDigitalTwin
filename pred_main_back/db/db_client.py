@@ -1,13 +1,16 @@
-import psycopg2, time, pandas as pd, os
+import psycopg2, time, pandas as pd
 from sqlalchemy import create_engine
-from config import POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT
 import json
 from psycopg2.extras import execute_batch
 
+from config import POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT
+
+#connect to the PostgreSQL database using SQLAlchemy -> for reading
 engine = create_engine(
     f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 )
 
+#connect to the PostgreSQL database using psycopg2 -> for writing
 def get_connection():
     while True:
         try:
@@ -23,6 +26,8 @@ def get_connection():
             print("DB connection error:", e)
             time.sleep(5)
 
+#insert a batch of engine data into the sensor_data table -> better performance than inserting one row at a time
+#on conflict (run_id, engine_id, cycle) -> update the existing row with new values
 def insert_batch(conn, cycle, engines):
 
     sql = """
@@ -57,6 +62,7 @@ def insert_batch(conn, cycle, engines):
 
     conn.commit()
 
+#get latest data for each engine in a run_id
 def fetch_latest_cycle_per_engine(run_id):
     df = pd.read_sql(f"""
         SELECT DISTINCT ON (engine_id) * 
@@ -66,7 +72,6 @@ def fetch_latest_cycle_per_engine(run_id):
     """, engine, params={"run_id": run_id})
 
     return df
-
 
 def fetch_engine_history(engine_id, run_id):
     """

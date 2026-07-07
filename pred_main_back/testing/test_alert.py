@@ -1,8 +1,8 @@
-from stream2db_consumer.get_alert import *
+from ui.utils.get_alert import *
 import pytest
 import numpy as np
 
-#configure how to run tests in docker
+#this is just an exercise to train pytest for Advanced Testing Methods exam
 
 def alert_on_3_of_5():
     reset_state()

@@ -8,18 +8,15 @@ from db.db_client import fetch_engine_history
 #ab wie vielen Zyklen ein Sensor als unverändert gilt
 STREAK_THRESHOLD = 5
 
+st.title("Unchanged Sensors")
+
 if "run_id" not in st.session_state:
-
     try:
-        api_status = requests.get("http://api:8000/status").json()
-        st.session_state.run_id = api_status["run_id"]
-
-    except Exception:
-        st.error("API not ready.")
+        status = requests.get("http://api:8000/status").json()
+        st.session_state.run_id = status.get("run_id")
+    except:
+        st.write("Start run first!")
         st.stop()
-
-else:
-    st.stop()
 
 data = fetch_engine_history(
     engine_id=3,

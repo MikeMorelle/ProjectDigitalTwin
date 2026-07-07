@@ -1,9 +1,13 @@
 import streamlit as st
 
+STREAK_THRESHOLD = 5
+
+#build the CSS for the engine SVG based on the status of each component (critical or ok)
 def build_css(status):
     css = "<style>"
 
     for comp, state in status.items():
+        #if state is critical, make the component blink with a white glow
         if state == "critical":
             css += f"""
             #{comp} {{
@@ -12,6 +16,7 @@ def build_css(status):
                 filter: drop-shadow(0 0 10px white);
             }}
             """
+        #if warning, make it blink slower with a smaller glow
         elif state == "warning":
             css += f"""
             #{comp} {{
@@ -20,7 +25,7 @@ def build_css(status):
                 filter: drop-shadow(0 0 8px white);
             }}
             """
-
+    #add the keyframes for the blink animation
     css += """
     @keyframes blink {
         0% { opacity: 1; }
@@ -31,6 +36,9 @@ def build_css(status):
     """
 
     return css
+
+#svg of a turbofan engine with each component as a separate element with an id for styling and interaction
+#ChatGPT generated based on reference image, but needed further adaptation to match the actual engine components and their positions, otherwise a bit of nonsense
 svg = """
 <svg
     viewBox="0 0 1000 350"
@@ -222,6 +230,7 @@ svg = """
 </svg>
 """
 
+#taken from info paper in dataset file...not sure if correctly assigned sensorNr to sensor, but not necessary for this fictional case
 COMPONENT_SENSORS = {
 
     "Fan": [
@@ -282,31 +291,38 @@ COMPONENT_SENSORS = {
     ],
 }
 
-
+#calc streak of unchanged sensor values
 def compute_streaks(series):
+    #true if current value != last value
     change = series.ne(series.shift())
+    #new group-id if new value
     groups = change.cumsum()
+    #counts within each group how often identical value
     return series.groupby(groups).cumcount() + 1
 
-
+#builds aggregated view of machine state
 def build_engine_view(latest):
-    status = {}
-    dynamic_svg = svg
-    unchanged = []
+    status = {} #state per component
+    dynamic_svg = svg   #svg template
+    unchanged = []  #all sensors with constant values
 
+    #loop over all components 
     for component, sensors in COMPONENT_SENSORS.items():
 
-        tooltip = f"{component}\n\n"
-        critical = False
+        tooltip = f"{component}\n\n"    #default tooltip
+        critical = False    #flag for critical sensors
 
+        #loop over all sensors of a component
         for name, desc, unit, streak_col in sensors:
-
+            #current streak length
             streak = int(latest[streak_col])
 
             if streak >= STREAK_THRESHOLD:
-
+                
+                #set flag
                 critical = True
 
+                #extend tooltip by detailed information
                 tooltip += (
                     f"{name} ({unit})\n"
                     f"{desc}\n"
@@ -321,11 +337,13 @@ def build_engine_view(latest):
                     "streak": streak
                 })
 
+        #default text if no sensor critical
         if not critical:
             tooltip += "No unchanged sensors."
 
         status[component] = "critical" if critical else "ok"
 
+        #dynamic tooltip for UI
         dynamic_svg = dynamic_svg.replace(
             f"<title>{component}</title>",
             f"<title>{tooltip}</title>"
@@ -333,10 +351,13 @@ def build_engine_view(latest):
 
     return status, dynamic_svg, unchanged
 
+#renders entire engine view in streamlit
 def render_engine(latest):
 
+    #get status, svg vis and list of unchanged sensors
     status, dynamic_svg, unchanged = build_engine_view(latest)
 
+    #show SVG in streamlit
     st.iframe(
         build_css(status) + dynamic_svg,
         height="content"
@@ -351,6 +372,7 @@ def render_engine(latest):
 
     for sensor in unchanged:
 
+        #detailed list of all sensors with constant values
         st.markdown(
             f"- **{sensor['component']}** → "
             f"**{sensor['sensor']}** ({sensor['unit']})  \n"

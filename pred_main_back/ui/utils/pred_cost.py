@@ -1,8 +1,10 @@
-#https://medium.com/@mihaitimoficiuc/predicting-jet-engine-failures-with-nasas-c-mapss-dataset-and-lstm-a-practical-guide-to-85b9513ea9ed
+#function taken from https://medium.com/@mihaitimoficiuc/predicting-jet-engine-failures-with-nasas-c-mapss-dataset-and-lstm-a-practical-guide-to-85b9513ea9ed
 
 UNSCHEDULED_MAINTENANCE_COST = 5000 #emergency repair
 SCHEDULED_MAINTENANCE_COST = 1000 #planned
 THRESHOLD = 50 
+
+#an imaginery scenario for comparing the costs of scheduled vs unscheduled maintenance based on the predicted RUL of engines
 
 def calc_predictive_costs(actual_rul_list, predicted_rul_list, threshold=THRESHOLD):
     total_cost = 0
