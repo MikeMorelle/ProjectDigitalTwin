@@ -14,6 +14,9 @@ if "run_id" not in st.session_state:
     try:
         status = requests.get("http://api:8000/status").json()
         st.session_state.run_id = status.get("run_id")
+        if st.session_state.run_id is None:
+            st.write("Start run first!")
+            st.stop()
     except:
         st.write("Start run first!")
         st.stop()
