@@ -18,7 +18,7 @@ dataset = st.selectbox(
 
 interval = st.selectbox(
     "In which time interval (s) do you want the data to be streamed?",
-    [5, 10, 15,60,90]
+    [15,60,90]
 )
 
 bias = st.selectbox(
